@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Delete message - Mail</title>
+<link rel="stylesheet" th:href="@{/ui/style.css}">
+</head>
+<body>
+<a class="back" th:href="@{/ui/message(box=${box},id=${m.id})}">&larr; Back to message</a>
+<h1>Delete this message?</h1>
+<div class="headers">
+  <div><span class="k">Type</span><span th:text="${m.channel == 'sms'} ? '💬 SMS' : '✉️ Email'">Email</span></div>
+  <div><span class="k">Subject</span><span th:text="${m.subject != null} ? ${m.subject} : '(none)'">subject</span></div>
+  <div><span class="k">From</span><span th:text="${m.from}">from</span></div>
+  <div><span class="k">Mailbox</span><span th:text="${m.to}">to</span></div>
+  <div><span class="k">Received</span><span th:text="${fmt.format(m.timestamp)}">time</span></div>
+</div>
+<p class="note">This permanently deletes it from this mailbox. Attachments and the original are removed too
+when no other mailbox has a copy. This cannot be undone.</p>
+<form method="post" th:action="@{/ui/delete}" class="toolbar">
+  <input type="hidden" name="box" th:value="${box}">
+  <input type="hidden" name="id" th:value="${m.id}">
+  <button type="submit" class="button danger">Delete permanently</button>
+  <a class="button" th:href="@{/ui/message(box=${box},id=${m.id})}">Cancel</a>
+</form>
+</body>
+</html>

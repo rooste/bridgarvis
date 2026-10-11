@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mail - Bridgarvis</title>
+<link rel="stylesheet" th:href="@{/ui/style.css}">
+</head>
+<body>
+<h1>Mail <span class="sub" th:text="${total} + ' messages'">0 messages</span> <a class="sub" th:href="@{/ui}">refresh</a></h1>
+<p class="empty" th:if="${boxes.isEmpty()}">No messages yet.</p>
+<div class="recipient" th:each="b : ${boxes}">
+  <div class="recipient-header">
+    <span class="icon" th:text="${b.channel == 'sms'} ? '💬' : '✉️'" th:title="${b.channel == 'sms'} ? 'SMS' : 'Email'">✉️</span>
+    <span th:text="${b.name}">mailbox</span><span class="count" th:text="'(' + ${b.messages.size()} + ')'">(1)</span>
+  </div>
+  <a class="email" th:each="m : ${b.messages}" th:href="@{/ui/message(box=${m.box},id=${m.id})}">
+    <div class="email-subject">
+      <span class="icon" th:text="${m.channel == 'sms'} ? '💬' : '✉️'" th:title="${m.channel == 'sms'} ? 'SMS' : 'Email'">✉️</span>
+      <span th:text="${m.subject != null and !m.subject.isBlank()} ? ${m.subject} : (${m.channel == 'sms'} ? 'Text message' : '(no subject)')">subject</span>
+      <span class="badge warn" th:if="${m.status == 'QUARANTINED' or m.status == 'UNPARSEABLE'}" th:text="${m.status.toLowerCase()}">quarantined</span>
+      <span class="badge ok" th:if="${m.pendingFor != null}">waiting for Juujarvis</span>
+      <span class="badge" th:if="${!m.attachments.isEmpty()}" th:text="${m.attachments.size()} + ' attachment(s)'">1 attachment</span>
+    </div>
+    <div class="email-meta"><span th:text="${m.fromName != null} ? ${m.fromName} + ' <' + ${m.from} + '>' : ${m.from}">from</span> · <span th:text="${fmt.format(m.timestamp)}">time</span></div>
+    <div class="email-preview" th:text="${m.preview != null} ? ${m.preview} : ${#strings.abbreviate(m.text, 200)}">preview</div>
+  </a>
+</div>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "app": "npx tsx bin/bridgarvis.ts",
+  "watch": { "include": ["bin/**", "lib/**", "assets/**"] },
+  "context": {
+    "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": false
+  }
+}

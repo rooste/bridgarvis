@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title th:text="${m.subject != null} ? ${m.subject} + ' - Mail' : 'Mail'">Mail</title>
+<link rel="stylesheet" th:href="@{/ui/style.css}">
+</head>
+<body>
+<div class="toolbar">
+  <a class="back" th:href="@{/ui}">&larr; All mail</a>
+  <a class="button danger" th:href="@{/ui/delete(box=${box},id=${m.id})}">Delete</a>
+</div>
+<h1><span class="icon" th:text="${m.channel == 'sms'} ? '💬' : '✉️'" th:title="${m.channel == 'sms'} ? 'SMS' : 'Email'">✉️</span>
+  <span th:text="${m.subject != null and !m.subject.isBlank()} ? ${m.subject} : (${m.channel == 'sms'} ? 'Text message' : '(no subject)')">subject</span></h1>
+<div class="headers">
+  <div><span class="k">From</span><span th:text="${m.fromName != null} ? ${m.fromName} + ' <' + ${m.from} + '>' : ${m.from}">from</span></div>
+  <div><span class="k">To</span><span th:text="${m.to}">to</span></div>
+  <div><span class="k">Type</span><span th:text="${m.channel == 'sms'} ? 'SMS' : 'Email'">Email</span></div>
+  <div><span class="k">Received</span><span th:text="${fmt.format(m.timestamp)}">time</span></div>
+  <div><span class="k">Status</span><span th:text="${m.status}">status</span><span class="badge ok" th:if="${m.pendingFor != null}">waiting for Juujarvis</span></div>
+  <div th:if="${!m.auth.isEmpty()}"><span class="k">Checks</span><span th:each="a, st : ${m.auth}"><span th:text="${a.key} + ' ' + ${a.value}">spf PASS</span><span th:unless="${st.last}"> · </span></span></div>
+</div>
+<div class="body" th:text="${m.text}">body</div>
+<div class="attachments" th:if="${!m.attachments.isEmpty()}">
+  <strong>Attachments</strong> <span class="badge">download only</span>
+  <ul>
+    <li th:each="a : ${m.attachments}"><a th:href="@{/ui/attachment/{i}(i=${a.index},box=${box},id=${m.id})}" th:text="${a.name}">file</a> <span class="email-meta" th:text="${a.contentType} + ', ' + ${a.size / 1024} + ' KB'">type</span></li>
+  </ul>
+</div>
+</body>
+</html>

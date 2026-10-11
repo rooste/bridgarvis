@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: bridgarvis
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  ssl:
+    bundle:
+      pem:
+        # Server identity + the pinned client certificate. Only a client presenting
+        # exactly this certificate (Juujarvis) can complete the TLS handshake.
+        bridgarvis:
+          reload-on-update: ${BRIDGARVIS_TLS_RELOAD:false}
+          keystore:
+            certificate: ${BRIDGARVIS_TLS_CERT:file:certs/server.pem}
+            private-key: ${BRIDGARVIS_TLS_KEY:file:certs/server.key}
+          truststore:
+            certificate: ${BRIDGARVIS_CLIENT_CERT:file:certs/juujarvis.pem}
+
+server:
+  port: ${BRIDGARVIS_PORT:8443}
+  ssl:
+    bundle: bridgarvis
+    client-auth: need
+
+# Health checks run on localhost only, without TLS, so deploy scripts don't need the client cert.
+management:
+  server:
+    port: ${BRIDGARVIS_MANAGEMENT_PORT:8081}
+    address: 127.0.0.1
+    ssl:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+bridgarvis:
+  # memory (local/tests) or dynamo (AWS: DynamoDB table + S3 mail bucket)
+  store: ${BRIDGARVIS_STORE:memory}
+  messages-table: ${BRIDGARVIS_MESSAGES_TABLE:}
+  sms:
+    number: ${BRIDGARVIS_SMS_NUMBER:+15550000000}
+  mail:
+    ingest-enabled: ${BRIDGARVIS_MAIL_INGEST:false}
+    bucket: ${BRIDGARVIS_MAIL_BUCKET:}
+    queue-url: ${BRIDGARVIS_MAIL_QUEUE_URL:}
+    # Mail to this address (case-insensitive) is handed to Juujarvis if it passes the auth checks
+    juujarvis-address: ${BRIDGARVIS_JUUJARVIS_ADDRESS:}
+    retention-days: 365

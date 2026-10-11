@@ -1,0 +1,5 @@
+node_modules/
+cdk.out/
+# Lookup results (account, hosted zone, AMI ids) stay local; the repo is public
+cdk.context.json
+local.env

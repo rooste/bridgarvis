@@ -1,0 +1,2 @@
+Test-only certificates for the mTLS integration test. Not used anywhere else.
+Regenerate with: DAYS=36500 scripts/gen-certs.sh src/test/resources/certs
