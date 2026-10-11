@@ -46,6 +46,13 @@ class MemoryMessageStore(private val events: ApplicationEventPublisher) : Messag
 
     override fun openAttachment(box: String, id: String, index: Int): AttachmentContent? = null
 
+    override fun findByProvider(box: String, providerId: String) =
+        items.values.firstOrNull { it.box == box && it.providerId == providerId }
+
+    override fun updateDelivery(box: String, id: String, status: String, detail: String?) {
+        items.computeIfPresent(box + "#" + id) { _, m -> m.copy(status = status, deliveryDetail = detail) }
+    }
+
     override fun delete(box: String, id: String) = (items.remove(box + "#" + id) != null)
         .also { if (it) log.info("Deleted message {}", id) }
 }

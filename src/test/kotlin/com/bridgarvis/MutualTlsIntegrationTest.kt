@@ -184,6 +184,21 @@ class MutualTlsIntegrationTest {
         assertEquals(404, get("/api/messages/$id").statusCode())
     }
 
+    @Test
+    fun `juujarvis can send email, browsers cannot, and invalid mail is rejected`() {
+        val ok = post("/api/email/send", mapOf("to" to listOf("alex@example.com"), "subject" to "Hello", "text" to "Body",
+            "inReplyTo" to "<orig@example.com>"))
+        assertEquals(200, ok.statusCode())
+        val sent = json(ok.body())
+        assertEquals("MOCK_SENT", sent["status"].asText())
+        assertTrue(sent["messageId"].asText().matches(Regex("^<[0-9a-z]{26}@example\\.com>$")))
+        assertTrue(json(get("/api/messages/outbox").body()).any { it["id"].asText() == sent["id"].asText() })
+
+        assertEquals(400, post("/api/email/send", mapOf("to" to listOf("x@example.com\r\nBcc: e@evil.example"), "subject" to "s", "text" to "t")).statusCode())
+        assertEquals(400, post("/api/email/send", mapOf("to" to emptyList<String>(), "subject" to "s", "text" to "t")).statusCode())
+        assertEquals(403, post("/api/email/send", mapOf("to" to listOf("a@example.com"), "subject" to "s", "text" to "t"), client("browser-test")).statusCode())
+    }
+
     private fun connect(frames: LinkedBlockingQueue<JsonNode>): WebSocket =
         client().newWebSocketBuilder()
             .buildAsync(URI.create("wss://localhost:$port/ws"), collector(frames))

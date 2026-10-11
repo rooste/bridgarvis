@@ -16,5 +16,6 @@ new BridgarvisStack(app, 'BridgarvisStack', {
   siteHost: required('BRIDGARVIS_SITE_HOST'),
   mailTestDomain: required('BRIDGARVIS_MAIL_TEST_DOMAIN'),
   mailUiHost: required('BRIDGARVIS_MAIL_UI_HOST'),
+  mailFromAddress: required('BRIDGARVIS_MAIL_FROM_ADDRESS'),
 });
 cdk.Tags.of(app).add('Project', 'bridgarvis');

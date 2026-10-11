@@ -31,6 +31,7 @@ dependencies {
     implementation("software.amazon.awssdk:dynamodb")
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:sqs")
+    implementation("software.amazon.awssdk:sesv2")
 
     // Mail parsing and text cleanup
     implementation("org.apache.james:apache-mime4j-dom:0.8.15")

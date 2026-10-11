@@ -19,6 +19,7 @@
   <div><span class="k">To</span><span th:text="${m.to}">to</span></div>
   <div><span class="k">Type</span><span th:text="${m.channel == 'sms'} ? 'SMS' : 'Email'">Email</span></div>
   <div><span class="k">Received</span><span th:text="${fmt.format(m.timestamp)}">time</span></div>
+  <div th:if="${m.deliveryDetail != null}"><span class="k">Delivery</span><span th:text="${m.deliveryDetail}">detail</span></div>
   <div><span class="k">Status</span><span th:text="${m.status}">status</span><span class="badge ok" th:if="${m.pendingFor != null}">waiting for Juujarvis</span></div>
   <div th:if="${!m.auth.isEmpty()}"><span class="k">Checks</span><span th:each="a, st : ${m.auth}"><span th:text="${a.key} + ' ' + ${a.value}">spf PASS</span><span th:unless="${st.last}"> · </span></span></div>
 </div>

@@ -17,6 +17,19 @@ object MailPolicy {
         return authenticated && isClean(verdicts)
     }
 
+    /**
+     * Sender matches an allowlist entry: an exact address ("someone@example.com") or a domain, which also
+     * covers its subdomains ("exampleschool.org" allows "g.exampleschool.org"). Only meaningful together with
+     * [isTrusted], which proves the From domain.
+     */
+    fun isAllowedSender(fromAddress: String?, allowed: List<String>): Boolean {
+        val address = fromAddress?.lowercase()?.trim()?.takeIf { it.contains('@') } ?: return false
+        val domain = address.substringAfterLast('@').ifBlank { return false }
+        return allowed.map { it.lowercase().trim() }.any { entry ->
+            if (entry.contains('@')) address == entry else domain == entry || domain.endsWith(".$entry")
+        }
+    }
+
     /** Not flagged as spam or virus. Enough for notify-only mailboxes, where strangers write legitimately. */
     fun isClean(verdicts: Map<String, String>): Boolean =
         verdicts["spam"] != "FAIL" && verdicts["virus"] != "FAIL"

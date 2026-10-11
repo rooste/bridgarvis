@@ -39,12 +39,16 @@ class MailIngestor(
     @Value("\${bridgarvis.mail.bucket}") private val bucket: String,
     @Value("\${bridgarvis.mail.juujarvis-address}") juujarvisAddresses: String,
     @Value("\${bridgarvis.mail.notify-addresses:}") notifyAddresses: String,
+    @Value("\${bridgarvis.mail.school-addresses:}") schoolAddresses: String,
+    @Value("\${bridgarvis.mail.school-sender-domains:}") schoolSenderDomains: String,
     @Value("\${bridgarvis.mail.retention-days:365}") private val retentionDays: Long
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val parser = MailParser()
     private val assistantList = addressList(juujarvisAddresses)
     private val notifyList = addressList(notifyAddresses)
+    private val schoolList = addressList(schoolAddresses)
+    private val schoolDomains = addressList(schoolSenderDomains)
 
     private fun addressList(value: String) = value.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     @Volatile private var running = true
@@ -132,11 +136,15 @@ class MailIngestor(
             val purpose = when {
                 assistantList.any { recipient.equals(it, ignoreCase = true) } -> Purpose.ASSISTANT
                 notifyList.any { recipient.equals(it, ignoreCase = true) } -> Purpose.NOTIFY
+                // School mailbox: processed only from allowlisted, authenticated school senders. Anything
+                // else there is just reported to the owner (the model never sees it).
+                schoolList.any { recipient.equals(it, ignoreCase = true) } ->
+                    if (trusted && MailPolicy.isAllowedSender(parsed?.from?.address, schoolDomains)) Purpose.SCHOOL else Purpose.NOTIFY
                 else -> null
             }
             // The assistant only gets authenticated mail; notify-only mailboxes just skip spam/viruses
             val accepted = when (purpose) {
-                Purpose.ASSISTANT -> trusted
+                Purpose.ASSISTANT, Purpose.SCHOOL -> trusted
                 Purpose.NOTIFY -> MailPolicy.isClean(verdicts)
                 else -> true
             }

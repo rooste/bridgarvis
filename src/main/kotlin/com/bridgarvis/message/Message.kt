@@ -13,6 +13,8 @@ object Purpose {
     const val ASSISTANT = "assistant"
     /** Mail to a monitored address (e.g. info@): Juujarvis only notifies the owner, never interprets it. */
     const val NOTIFY = "notify"
+    /** School mail forwarded to the school mailbox from an allowlisted, authenticated school sender. */
+    const val SCHOOL = "school"
 }
 
 enum class Direction { INBOUND, OUTBOUND }
@@ -49,6 +51,8 @@ data class Message(
     val inReplyTo: String? = null,
     val references: String? = null,
     val purpose: String? = null,
+    /** Outbound mail: last delivery event detail (bounce reason, delay type, ...). */
+    val deliveryDetail: String? = null,
     @get:JsonIgnore val pendingFor: String? = null,
     @get:JsonIgnore val textKey: String? = null,
     @get:JsonIgnore val rawKey: String? = null,

@@ -23,6 +23,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   mailTestDomain: string;
   /** Mail UI name; nginx passes it through to the gateway (browser client certificates). */
   mailUiHost: string;
+  /** The only address the gateway may send email from (e.g. the assistant's address). */
+  mailFromAddress: string;
 }
 
 /**
@@ -134,7 +136,22 @@ export class BridgarvisStack extends cdk.Stack {
 
     // Domain identities with Easy DKIM. The subdomain is verified separately so receiving on it does
     // not depend on how SES treats subdomains of a verified domain.
-    new ses.EmailIdentity(this, 'DomainIdentity', { identity: ses.Identity.publicHostedZone(zone) });
+    // Custom MAIL FROM domain: bounces return under our domain and SPF aligns for DMARC. CDK publishes
+    // its MX and SPF records in the zone.
+    new ses.EmailIdentity(this, 'DomainIdentity', {
+      identity: ses.Identity.publicHostedZone(zone),
+      mailFromDomain: `bounce.${props.zoneName}`,
+    });
+    // Domain policies: only SES may send for the apex; DMARC starts in monitoring mode (p=none) with
+    // aggregate reports delivered to our own mailbox (visible in the mail UI).
+    new route53.TxtRecord(this, 'ApexSpf', {
+      zone, values: ['v=spf1 include:amazonses.com ~all'], ttl: cdk.Duration.hours(1),
+    });
+    new route53.TxtRecord(this, 'Dmarc', {
+      zone, recordName: `_dmarc.${props.zoneName}`,
+      values: [`v=DMARC1; p=none; rua=mailto:dmarc-reports@${props.zoneName}; fo=1`],
+      ttl: cdk.Duration.hours(1),
+    });
     const testIdentity = new ses.EmailIdentity(this, 'TestDomainIdentity', {
       identity: ses.Identity.domain(props.mailTestDomain),
     });
@@ -227,17 +244,55 @@ export class BridgarvisStack extends cdk.Stack {
       ttl: cdk.Duration.minutes(5),
     });
 
+    // ---------------------------------------------------------------- mail (SES sending)
+
+    // Delivery events (bounce, complaint, delivery, ...) for everything the gateway sends.
+    const sendEventsDlq = new sqs.Queue(this, 'MailEventsDlq', { retentionPeriod: cdk.Duration.days(14), enforceSSL: true });
+    const sendEventsQueue = new sqs.Queue(this, 'MailEventsQueue', {
+      retentionPeriod: cdk.Duration.days(14),
+      visibilityTimeout: cdk.Duration.minutes(2),
+      deadLetterQueue: { queue: sendEventsDlq, maxReceiveCount: 5 },
+      enforceSSL: true,
+    });
+    const sendEvents = new sns.Topic(this, 'MailEvents');
+    sendEvents.addSubscription(new snsSubs.SqsSubscription(sendEventsQueue, { rawMessageDelivery: true }));
+    const configurationSet = new ses.ConfigurationSet(this, 'SendConfig', {
+      configurationSetName: 'bridgarvis',
+      suppressionReasons: ses.SuppressionReasons.BOUNCES_AND_COMPLAINTS,
+    });
+    configurationSet.addEventDestination('ToSns', {
+      destination: ses.EventDestination.snsTopic(sendEvents),
+      events: [
+        ses.EmailSendingEvent.BOUNCE, ses.EmailSendingEvent.COMPLAINT, ses.EmailSendingEvent.DELIVERY,
+        ses.EmailSendingEvent.REJECT, ses.EmailSendingEvent.DELIVERY_DELAY, ses.EmailSendingEvent.RENDERING_FAILURE,
+      ],
+    });
+
     // Gateway access
     messages.grantReadWriteData(role);
     mailBucket.grantRead(role, 'inbound/*');
     mailBucket.grantDelete(role, 'inbound/*');
     mailBucket.grantReadWrite(role, 'parsed/*');
     parseQueue.grantConsumeMessages(role);
+    sendEventsQueue.grantConsumeMessages(role);
+    // Send only from the one address, only with our configuration set (so every send produces events).
+    // identity/* because in the SES sandbox the recipients' verified identities are checked too; the
+    // FromAddress condition is what limits the sender.
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: [
+        `arn:aws:ses:${this.region}:${this.account}:identity/*`,
+        `arn:aws:ses:${this.region}:${this.account}:configuration-set/${configurationSet.configurationSetName}`,
+      ],
+      conditions: { StringEquals: { 'ses:FromAddress': props.mailFromAddress } },
+    }));
 
     new cdk.CfnOutput(this, 'MessagesTable', { value: messages.tableName });
     new cdk.CfnOutput(this, 'MailBucketName', { value: mailBucket.bucketName });
     new cdk.CfnOutput(this, 'MailParseQueueUrl', { value: parseQueue.queueUrl });
     new cdk.CfnOutput(this, 'MailParseDlqUrl', { value: parseDlq.queueUrl });
+    new cdk.CfnOutput(this, 'MailEventsQueueUrl', { value: sendEventsQueue.queueUrl });
+    new cdk.CfnOutput(this, 'MailConfigurationSet', { value: configurationSet.configurationSetName });
 
     new cdk.CfnOutput(this, 'InstanceId', { value: instance.instanceId });
     new cdk.CfnOutput(this, 'PublicIp', { value: eip.ref });

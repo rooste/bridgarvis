@@ -49,4 +49,12 @@ bridgarvis:
     juujarvis-address: ${BRIDGARVIS_JUUJARVIS_ADDRESS:}
     # Mailboxes Juujarvis only notifies about (comma-separated, case-insensitive), e.g. info@
     notify-addresses: ${BRIDGARVIS_NOTIFY_ADDRESSES:}
+    # School mailbox (comma-separated) and the senders whose authenticated mail is processed:
+    # domains (incl. subdomains) or exact addresses, e.g. a parent who forwards school mail by hand
+    school-addresses: ${BRIDGARVIS_SCHOOL_ADDRESSES:}
+    school-sender-domains: ${BRIDGARVIS_SCHOOL_SENDER_DOMAINS:}
     retention-days: 365
+    # Sending (SES): the only From address, the configuration set, and its delivery-events queue
+    from-address: ${BRIDGARVIS_MAIL_FROM_ADDRESS:assistant@example.com}
+    configuration-set: ${BRIDGARVIS_MAIL_CONFIGURATION_SET:}
+    events-queue-url: ${BRIDGARVIS_MAIL_EVENTS_QUEUE_URL:}

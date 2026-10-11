@@ -123,6 +123,28 @@ class DynamoMessageStore(
         return true
     }
 
+    override fun findByProvider(box: String, providerId: String): Message? =
+        dynamo.queryPaginator {
+            it.tableName(table)
+                .keyConditionExpression("box = :b")
+                .filterExpression("providerId = :p")
+                .expressionAttributeValues(mapOf(":b" to s(box), ":p" to s(providerId)))
+                .scanIndexForward(false)
+        }.items().firstOrNull()?.let { fromItem(it) }
+
+    override fun updateDelivery(box: String, id: String, status: String, detail: String?) {
+        dynamo.updateItem {
+            it.tableName(table)
+                .key(mapOf("box" to s(box), "id" to s(id)))
+                .conditionExpression("attribute_exists(id)")
+                .updateExpression(if (detail != null) "SET #st = :s, deliveryDetail = :d" else "SET #st = :s")
+                .expressionAttributeNames(mapOf("#st" to "status"))
+                .expressionAttributeValues(buildMap {
+                    put(":s", s(status)); detail?.let { d -> put(":d", s(d)) }
+                })
+        }
+    }
+
     private fun withFullText(m: Message): Message =
         if (m.textKey != null) m.copy(text = s3.getObjectAsBytes { it.bucket(bucket).key(m.textKey) }.asUtf8String()) else m
 
@@ -141,6 +163,7 @@ class DynamoMessageStore(
         m.references?.let { put("references", s(it)) }
         m.pendingFor?.let { put("pendingFor", s(it)) }
         m.purpose?.let { put("purpose", s(it)) }
+        m.deliveryDetail?.let { put("deliveryDetail", s(it)) }
         m.textKey?.let { put("textKey", s(it)) }
         m.rawKey?.let { put("rawKey", s(it)) }
         m.providerId?.let { put("providerId", s(it)) }
@@ -180,6 +203,7 @@ class DynamoMessageStore(
         references = i.str("references"),
         pendingFor = i.str("pendingFor"),
         purpose = i.str("purpose"),
+        deliveryDetail = i.str("deliveryDetail"),
         textKey = i.str("textKey"),
         rawKey = i.str("rawKey"),
         providerId = i.str("providerId"),

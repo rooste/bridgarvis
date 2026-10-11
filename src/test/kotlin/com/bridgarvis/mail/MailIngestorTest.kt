@@ -64,6 +64,8 @@ class MailIngestorTest {
         override fun find(box: String, id: String) = saved.firstOrNull { it.box == box && it.id == id }
         override fun openAttachment(box: String, id: String, index: Int): AttachmentContent? = null
         override fun delete(box: String, id: String) = saved.removeIf { it.box == box && it.id == id }
+        override fun findByProvider(box: String, providerId: String) = saved.firstOrNull { it.box == box && it.providerId == providerId }
+        override fun updateDelivery(box: String, id: String, status: String, detail: String?) {}
     }
 
     private fun notification(dmarc: String, recipients: List<String>) = jacksonObjectMapper().writeValueAsString(mapOf(
@@ -81,7 +83,8 @@ class MailIngestorTest {
     ))
 
     private fun ingestor(store: MessageStore) =
-        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "juujarvis@in.example.com", "info@in.example.com", 365)
+        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "juujarvis@in.example.com", "info@in.example.com",
+            "school@in.example.com", "example.com", 365)
 
     @Test
     fun `trusted mail is stored per mailbox in exact case and only the juujarvis copy is pending`() {
@@ -122,6 +125,22 @@ class MailIngestorTest {
         val other = store.saved.first { it.box == "email#random@in.example.com" }
         assertNull(other.purpose)
         assertNull(other.pendingFor)
+    }
+
+    @Test
+    fun `school mailbox processes authenticated allowlisted senders and only notifies about others`() {
+        val trusted = RecordingStore().also { ingestor(it).process(notification("PASS", listOf("school@in.example.com"))) }
+        assertEquals("school", trusted.saved.single().purpose)             // mom@example.com is on the allowlist
+        assertEquals(JUUJARVIS, trusted.saved.single().pendingFor)
+
+        val forged = RecordingStore().also { ingestor(it).process(notification("FAIL", listOf("school@in.example.com"))) }
+        assertEquals("notify", forged.saved.single().purpose)              // unauthenticated: owner is told, model is not
+        assertEquals(JUUJARVIS, forged.saved.single().pendingFor)
+
+        val store = RecordingStore()
+        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "", "", "school@in.example.com", "district.example.org", 365)
+            .process(notification("PASS", listOf("school@in.example.com")))
+        assertEquals("notify", store.saved.single().purpose)               // authenticated but not a school domain
     }
 
     @Test

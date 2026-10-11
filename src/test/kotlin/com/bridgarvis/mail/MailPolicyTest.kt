@@ -19,4 +19,19 @@ class MailPolicyTest {
         assertFalse(MailPolicy.isTrusted(v("PASS", virus = "FAIL")))
         assertFalse(MailPolicy.isTrusted(emptyMap()))
     }
+
+    @Test
+    fun `allowed sender matches domain and subdomains only`() {
+        val d = listOf("exampleschool.org", "schoolnotices.example")
+        assertTrue(MailPolicy.isAllowedSender("teacher@exampleschool.org", d))
+        assertTrue(MailPolicy.isAllowedSender("student@g.exampleschool.org", d))
+        assertTrue(MailPolicy.isAllowedSender("donotreply+abc@schoolnotices.example", d))
+        assertFalse(MailPolicy.isAllowedSender("x@evilexampleschool.org", d))
+        assertFalse(MailPolicy.isAllowedSender("x@exampleschool.org.evil.net", d))
+        assertFalse(MailPolicy.isAllowedSender(null, d))
+        assertFalse(MailPolicy.isAllowedSender("no-at-sign", d))
+        val withAddress = d + "parent@mail.example"
+        assertTrue(MailPolicy.isAllowedSender("Parent@Mail.Example", withAddress))     // exact address, any case
+        assertFalse(MailPolicy.isAllowedSender("other@mail.example", withAddress))     // not the whole domain
+    }
 }

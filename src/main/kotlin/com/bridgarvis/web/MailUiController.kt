@@ -1,6 +1,5 @@
 package com.bridgarvis.web
 
-import com.bridgarvis.message.Direction
 import com.bridgarvis.message.Message
 import com.bridgarvis.store.MessageStore
 import jakarta.servlet.http.HttpServletRequest
@@ -51,7 +50,7 @@ class MailUiController(private val store: MessageStore) {
     fun index(model: Model): String {
         val messages = store.recent("email", 300) + store.recent("sms", 100)
         // Group by exact mailbox: "Alex@…" and "alex@…" stay separate
-        val boxes = messages.filter { it.direction == Direction.INBOUND }
+        val boxes = messages
             .groupBy { it.box }
             .map { (box, list) -> Mailbox(box.substringAfter('#'), box.substringBefore('#'), list.sortedByDescending { it.id }) }
             .sortedByDescending { it.messages.first().id }

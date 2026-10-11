@@ -36,4 +36,11 @@ interface MessageStore {
      * removed once no other mailbox holds a copy of the same message.
      */
     fun delete(box: String, id: String): Boolean
+
+    // ---- outbound delivery tracking
+
+    /** The outbound message in [box] that the provider (SES) knows as [providerId]. */
+    fun findByProvider(box: String, providerId: String): Message?
+
+    fun updateDelivery(box: String, id: String, status: String, detail: String?)
 }
