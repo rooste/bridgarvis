@@ -81,7 +81,7 @@ class MailIngestorTest {
     ))
 
     private fun ingestor(store: MessageStore) =
-        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "juujarvis@in.example.com", 365)
+        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "juujarvis@in.example.com", "info@in.example.com", 365)
 
     @Test
     fun `trusted mail is stored per mailbox in exact case and only the juujarvis copy is pending`() {
@@ -98,6 +98,7 @@ class MailIngestorTest {
         assertEquals("list.png", j.attachments.single().name)
         assertEquals("inbound/ses-123", j.rawKey)
         assertNull(store.saved[1].pendingFor)
+        assertEquals("assistant", j.purpose)
         assertEquals(1, puts.size)  // attachment uploaded once, shared by both items
         assertEquals(store.saved[0].id, store.saved[1].id)
     }
@@ -108,6 +109,19 @@ class MailIngestorTest {
         ingestor(store).process(notification("FAIL", listOf("juujarvis@in.example.com")))
         assertEquals("QUARANTINED", store.saved.single().status)
         assertNull(store.saved.single().pendingFor)
+    }
+
+    @Test
+    fun `info mailbox is notify-only and accepts unauthenticated but clean mail`() {
+        val store = RecordingStore()
+        ingestor(store).process(notification("FAIL", listOf("Info@in.example.com", "random@in.example.com")))
+        val info = store.saved.first { it.box == "email#Info@in.example.com" }
+        assertEquals("notify", info.purpose)
+        assertEquals(JUUJARVIS, info.pendingFor)
+        assertEquals("RECEIVED", info.status)
+        val other = store.saved.first { it.box == "email#random@in.example.com" }
+        assertNull(other.purpose)
+        assertNull(other.pendingFor)
     }
 
     @Test

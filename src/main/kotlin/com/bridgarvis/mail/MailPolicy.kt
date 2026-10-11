@@ -14,6 +14,10 @@ object MailPolicy {
         val dmarc = verdicts["dmarc"]
         val dkim = verdicts["dkim"]
         val authenticated = dmarc == "PASS" || (dmarc == "GRAY" && dkim == "PASS")
-        return authenticated && verdicts["spam"] != "FAIL" && verdicts["virus"] != "FAIL"
+        return authenticated && isClean(verdicts)
     }
+
+    /** Not flagged as spam or virus. Enough for notify-only mailboxes, where strangers write legitimately. */
+    fun isClean(verdicts: Map<String, String>): Boolean =
+        verdicts["spam"] != "FAIL" && verdicts["virus"] != "FAIL"
 }

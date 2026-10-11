@@ -45,6 +45,8 @@ bridgarvis:
     ingest-enabled: ${BRIDGARVIS_MAIL_INGEST:false}
     bucket: ${BRIDGARVIS_MAIL_BUCKET:}
     queue-url: ${BRIDGARVIS_MAIL_QUEUE_URL:}
-    # Mail to this address (case-insensitive) is handed to Juujarvis if it passes the auth checks
+    # Mail to these addresses (comma-separated, case-insensitive) goes to the assistant if it passes the auth checks
     juujarvis-address: ${BRIDGARVIS_JUUJARVIS_ADDRESS:}
+    # Mailboxes Juujarvis only notifies about (comma-separated, case-insensitive), e.g. info@
+    notify-addresses: ${BRIDGARVIS_NOTIFY_ADDRESSES:}
     retention-days: 365

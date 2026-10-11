@@ -26,6 +26,8 @@ chmod 644 "$OUT/$NAME.pem"
 
 PASS="$(openssl rand -hex 8)"
 printf '%s' "$PASS" > "$OUT/$NAME.p12.pass"
+# 3DES/SHA1 packaging: accepted by both macOS Keychain and iOS profile installation
 openssl pkcs12 -export -name "$NAME" -inkey "$OUT/$NAME.key" -in "$OUT/$NAME.pem" \
+    -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 \
     -out "$OUT/$NAME.p12" -passout "pass:$PASS"
 echo "Created $OUT/$NAME.p12 (import password in $OUT/$NAME.p12.pass)"

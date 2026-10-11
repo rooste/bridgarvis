@@ -140,6 +140,7 @@ class DynamoMessageStore(
         m.inReplyTo?.let { put("inReplyTo", s(it)) }
         m.references?.let { put("references", s(it)) }
         m.pendingFor?.let { put("pendingFor", s(it)) }
+        m.purpose?.let { put("purpose", s(it)) }
         m.textKey?.let { put("textKey", s(it)) }
         m.rawKey?.let { put("rawKey", s(it)) }
         m.providerId?.let { put("providerId", s(it)) }
@@ -178,6 +179,7 @@ class DynamoMessageStore(
         inReplyTo = i.str("inReplyTo"),
         references = i.str("references"),
         pendingFor = i.str("pendingFor"),
+        purpose = i.str("purpose"),
         textKey = i.str("textKey"),
         rawKey = i.str("rawKey"),
         providerId = i.str("providerId"),

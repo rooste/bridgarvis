@@ -7,6 +7,14 @@ import java.time.Instant
 /** Marks items waiting for Juujarvis (the sparse "pending" index). */
 const val JUUJARVIS = "juujarvis"
 
+/** Why a message is handed to Juujarvis. */
+object Purpose {
+    /** Mail to the assistant's own address: Juujarvis reads and answers it (as untrusted content). */
+    const val ASSISTANT = "assistant"
+    /** Mail to a monitored address (e.g. info@): Juujarvis only notifies the owner, never interprets it. */
+    const val NOTIFY = "notify"
+}
+
 enum class Direction { INBOUND, OUTBOUND }
 
 data class AttachmentInfo(
@@ -40,6 +48,7 @@ data class Message(
     val messageId: String? = null,
     val inReplyTo: String? = null,
     val references: String? = null,
+    val purpose: String? = null,
     @get:JsonIgnore val pendingFor: String? = null,
     @get:JsonIgnore val textKey: String? = null,
     @get:JsonIgnore val rawKey: String? = null,

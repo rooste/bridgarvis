@@ -21,6 +21,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   siteHost: string;
   /** Subdomain whose mail is received through SES while the main domain's MX still points elsewhere. */
   mailTestDomain: string;
+  /** Mail UI name; nginx passes it through to the gateway (browser client certificates). */
+  mailUiHost: string;
 }
 
 /**
@@ -203,13 +205,27 @@ export class BridgarvisStack extends cdk.Stack {
       receiptRuleSetName: 'bridgarvis',
       rules: [{
         receiptRuleName: 'test-domain',
-        recipients: [props.mailTestDomain],
+        // Main domain (MX switched from the old mail server) and the test subdomain
+        recipients: [props.zoneName, props.mailTestDomain],
         scanEnabled: true,
         actions: [new sesActions.S3({ bucket: mailBucket, objectKeyPrefix: 'inbound/', topic: received })],
       }],
     });
     // Note: CloudFormation cannot activate a rule set; activate once with
     //   aws ses set-active-receipt-rule-set --rule-set-name bridgarvis
+
+    // Main-domain MX → SES, and the mail UI name. Adopted (cdk import) from the retired mail-server stack.
+    new route53.MxRecord(this, 'MainMx', {
+      zone,
+      values: [{ priority: 10, hostName: `inbound-smtp.${this.region}.amazonaws.com` }],
+      ttl: cdk.Duration.minutes(5),
+    });
+    new route53.ARecord(this, 'MailUiRecord', {
+      zone,
+      recordName: props.mailUiHost,
+      target: route53.RecordTarget.fromIpAddresses(eip.ref),
+      ttl: cdk.Duration.minutes(5),
+    });
 
     // Gateway access
     messages.grantReadWriteData(role);

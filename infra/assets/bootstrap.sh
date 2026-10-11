@@ -3,7 +3,7 @@
 set -euxo pipefail
 
 dnf -y upgrade --refresh
-dnf -y install java-21-amazon-corretto-headless amazon-cloudwatch-agent python3.12 dnf-automatic nginx
+dnf -y install java-21-amazon-corretto-headless amazon-cloudwatch-agent python3.12 dnf-automatic nginx nginx-mod-stream
 
 # Automatic security updates (the OS end-of-life problem should not come back as a project)
 sed -i 's/^upgrade_type.*/upgrade_type = security/; s/^apply_updates.*/apply_updates = yes/' /etc/dnf/automatic.conf

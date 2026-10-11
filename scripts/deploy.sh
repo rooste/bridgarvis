@@ -14,6 +14,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 set -a; source "$ROOT/infra/local.env"; set +a
 : "${BRIDGARVIS_HOST:?}" "${BRIDGARVIS_JUUJARVIS_ADDRESS:?}"
+MAIL_UI_HOST="${BRIDGARVIS_MAIL_UI_HOST:-}"
+NOTIFY_ADDRESSES="${BRIDGARVIS_NOTIFY_ADDRESSES:-}"
 [ -f "$ROOT/certs/juujarvis.pem" ] || { echo "Missing certs/juujarvis.pem (scripts/gen-certs.sh)" >&2; exit 1; }
 # Trusted clients: Juujarvis plus every browser certificate (scripts/gen-client-cert.sh)
 CLIENTS="$(mktemp)"
@@ -56,8 +58,13 @@ install -m 640 -o root -g bridgarvis "\$LIVE/privkey.pem" /etc/bridgarvis/tls/pr
 HOOK
 chmod 755 /etc/letsencrypt/renewal-hooks/deploy/bridgarvis-tls.sh
 echo "\$HOST" > /etc/bridgarvis/tls/host
-if [ ! -f "/etc/letsencrypt/live/\$HOST/fullchain.pem" ]; then
-  certbot certonly --dns-route53 --non-interactive --agree-tos --register-unsafely-without-email -d "\$HOST" 2>&1 | tail -2
+# One certificate for the gateway name and (optionally) the mail UI name, which nginx passes through to us
+MAIL_HOST='$MAIL_UI_HOST'
+NAMES="-d \$HOST"; [ -n "\$MAIL_HOST" ] && NAMES="\$NAMES -d \$MAIL_HOST"
+LIVE="/etc/letsencrypt/live/\$HOST/cert.pem"
+if [ ! -f "\$LIVE" ] || { [ -n "\$MAIL_HOST" ] && ! openssl x509 -in "\$LIVE" -noout -ext subjectAltName | grep -q "DNS:\$MAIL_HOST"; }; then
+  certbot certonly --dns-route53 --non-interactive --agree-tos --register-unsafely-without-email \
+    --cert-name "\$HOST" --expand \$NAMES 2>&1 | tail -2
 fi
 /etc/letsencrypt/renewal-hooks/deploy/bridgarvis-tls.sh
 
@@ -76,6 +83,7 @@ BRIDGARVIS_MAIL_INGEST=true
 BRIDGARVIS_MAIL_BUCKET=$MAIL_BUCKET
 BRIDGARVIS_MAIL_QUEUE_URL=$MAIL_QUEUE
 BRIDGARVIS_JUUJARVIS_ADDRESS=$BRIDGARVIS_JUUJARVIS_ADDRESS
+BRIDGARVIS_NOTIFY_ADDRESSES=$NOTIFY_ADDRESSES
 ENV
 chown root:bridgarvis /etc/bridgarvis/aws.env
 chmod 640 /etc/bridgarvis/aws.env

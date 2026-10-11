@@ -33,7 +33,8 @@ class ClientRoleFilter : OncePerRequestFilter() {
 
         val allowed = when {
             cn == "juujarvis" -> path.startsWith("/api/") || path == "/ws"
-            cn != null && cn.startsWith("browser-") -> path == "/ui" || path.startsWith("/ui/") || path == "/favicon.ico"
+            cn != null && cn.startsWith("browser-") ->
+                path == "/" || path == "/ui" || path.startsWith("/ui/") || path == "/favicon.ico"
             else -> false
         }
         if (allowed) {

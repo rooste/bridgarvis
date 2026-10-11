@@ -4,6 +4,7 @@ import com.bridgarvis.message.AttachmentInfo
 import com.bridgarvis.message.Direction
 import com.bridgarvis.message.JUUJARVIS
 import com.bridgarvis.message.Message
+import com.bridgarvis.message.Purpose
 import com.bridgarvis.message.Ulid
 import com.bridgarvis.store.MessageStore
 import com.fasterxml.jackson.databind.JsonNode
@@ -36,11 +37,16 @@ class MailIngestor(
     private val mapper: ObjectMapper,
     @Value("\${bridgarvis.mail.queue-url}") private val queueUrl: String,
     @Value("\${bridgarvis.mail.bucket}") private val bucket: String,
-    @Value("\${bridgarvis.mail.juujarvis-address}") private val juujarvisAddress: String,
+    @Value("\${bridgarvis.mail.juujarvis-address}") juujarvisAddresses: String,
+    @Value("\${bridgarvis.mail.notify-addresses:}") notifyAddresses: String,
     @Value("\${bridgarvis.mail.retention-days:365}") private val retentionDays: Long
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val parser = MailParser()
+    private val assistantList = addressList(juujarvisAddresses)
+    private val notifyList = addressList(notifyAddresses)
+
+    private fun addressList(value: String) = value.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     @Volatile private var running = true
     private val worker = Thread({ loop() }, "mail-ingest").apply { isDaemon = true }
 
@@ -123,10 +129,20 @@ class MailIngestor(
         } else null
 
         for (recipient in recipients) {
-            val forJuujarvis = juujarvisAddress.isNotBlank() && recipient.equals(juujarvisAddress, ignoreCase = true)
+            val purpose = when {
+                assistantList.any { recipient.equals(it, ignoreCase = true) } -> Purpose.ASSISTANT
+                notifyList.any { recipient.equals(it, ignoreCase = true) } -> Purpose.NOTIFY
+                else -> null
+            }
+            // The assistant only gets authenticated mail; notify-only mailboxes just skip spam/viruses
+            val accepted = when (purpose) {
+                Purpose.ASSISTANT -> trusted
+                Purpose.NOTIFY -> MailPolicy.isClean(verdicts)
+                else -> true
+            }
             val status = when {
                 parsed == null -> "UNPARSEABLE"
-                forJuujarvis && !trusted -> "QUARANTINED"
+                purpose != null && !accepted -> "QUARANTINED"
                 else -> "RECEIVED"
             }
             store.save(Message(
@@ -148,7 +164,8 @@ class MailIngestor(
                 messageId = parsed?.messageId,
                 inReplyTo = parsed?.inReplyTo,
                 references = parsed?.references,
-                pendingFor = if (forJuujarvis && status == "RECEIVED") JUUJARVIS else null,
+                purpose = purpose,
+                pendingFor = if (purpose != null && status == "RECEIVED") JUUJARVIS else null,
                 textKey = textKey,
                 rawKey = objectKey,
                 providerId = sesId,
