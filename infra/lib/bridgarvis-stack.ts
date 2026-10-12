@@ -19,6 +19,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   hostName: string;
   /** Public website (program info, privacy policy, terms) served by nginx on this host. */
   siteHost: string;
+  /** More names serving the same website (e.g. the bare domain and www). */
+  siteAliases?: string[];
   /** Subdomain whose mail is received through SES while the main domain's MX still points elsewhere. */
   mailTestDomain: string;
   /** Mail UI name; nginx passes it through to the gateway (browser client certificates). */
@@ -130,6 +132,14 @@ export class BridgarvisStack extends cdk.Stack {
       recordName: props.siteHost,
       target: route53.RecordTarget.fromIpAddresses(eip.ref),
       ttl: cdk.Duration.minutes(5),
+    });
+    (props.siteAliases ?? []).forEach((name, i) => {
+      new route53.ARecord(this, `SiteAlias${i}`, {
+        zone,
+        recordName: name,
+        target: route53.RecordTarget.fromIpAddresses(eip.ref),
+        ttl: cdk.Duration.minutes(5),
+      });
     });
 
     // ---------------------------------------------------------------- mail (SES receiving)

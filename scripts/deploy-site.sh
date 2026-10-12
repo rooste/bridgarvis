@@ -6,6 +6,7 @@
 #      installs the nginx TLS config, syncs the files, reloads nginx
 #
 # local.env needs: BRIDGARVIS_SITE_HOST, SITE_OWNER_NAME, SITE_OWNER_LOCATION, SITE_CONTACT_EMAIL.
+# Optional BRIDGARVIS_SITE_ALIASES: more names (comma-separated) for the same site, added to its certificate.
 # Optional BRIDGARVIS_MAIL_UI_HOST: nginx routes port 443 by SNI. That name is passed through, still
 # encrypted, to the Bridgarvis gateway (which checks the browser's client certificate itself); every
 # other name is served by nginx on an internal port.
@@ -16,6 +17,7 @@ set -a; source "$ROOT/infra/local.env"; set +a
 : "${BRIDGARVIS_SITE_HOST:?}" "${SITE_OWNER_NAME:?}" "${SITE_OWNER_LOCATION:?}" "${SITE_CONTACT_EMAIL:?}"
 
 MAIL_UI_HOST="${BRIDGARVIS_MAIL_UI_HOST:-}"
+SITE_NAMES="$BRIDGARVIS_SITE_HOST $(echo "${BRIDGARVIS_SITE_ALIASES:-}" | tr ',' ' ')"
 BUCKET="$(aws cloudformation describe-stacks --stack-name BridgarvisStack \
   --query "Stacks[0].Outputs[?OutputKey=='DeployBucketName'].OutputValue" --output text)"
 
@@ -50,9 +52,10 @@ echo "Uploaded site to s3://$BUCKET/site/"
 "$ROOT/scripts/host-run.sh" "$(cat <<EOF
 set -euo pipefail
 HOST='$BRIDGARVIS_SITE_HOST'
-if [ ! -f /etc/letsencrypt/live/\$HOST/fullchain.pem ]; then
-  certbot certonly --dns-route53 --non-interactive --agree-tos --register-unsafely-without-email -d "\$HOST"
-fi
+NAMES='$SITE_NAMES'
+# One certificate (named after HOST) for all site names; a no-op unless it is missing, expiring or the names changed
+certbot certonly --dns-route53 --non-interactive --agree-tos --register-unsafely-without-email \\
+  --cert-name "\$HOST" --keep-until-expiring \$(for n in \$NAMES; do printf -- '-d %s ' "\$n"; done) 2>&1 | tail -1
 # Port 443 belongs to the SNI router (stream module); HTTPS sites listen internally on 8444
 dnf -y -q install nginx-mod-stream >/dev/null
 install -d /etc/nginx/stream.d
@@ -86,14 +89,14 @@ fi
 cat > /etc/nginx/conf.d/site.conf <<NGINX
 server {
     listen 80;
-    server_name \$HOST;
+    server_name \$NAMES;
     server_tokens off;
     return 301 https://\\\$host\\\$request_uri;
 }
 server {
     listen 127.0.0.1:8444 ssl;
     http2 on;
-    server_name \$HOST;
+    server_name \$NAMES;
     server_tokens off;
     ssl_certificate     /etc/letsencrypt/live/\$HOST/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/\$HOST/privkey.pem;

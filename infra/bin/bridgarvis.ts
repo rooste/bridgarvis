@@ -14,6 +14,7 @@ new BridgarvisStack(app, 'BridgarvisStack', {
   zoneName: required('BRIDGARVIS_ZONE'),
   hostName: required('BRIDGARVIS_HOST'),
   siteHost: required('BRIDGARVIS_SITE_HOST'),
+  siteAliases: (process.env.BRIDGARVIS_SITE_ALIASES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   mailTestDomain: required('BRIDGARVIS_MAIL_TEST_DOMAIN'),
   mailUiHost: required('BRIDGARVIS_MAIL_UI_HOST'),
   mailFromAddress: required('BRIDGARVIS_MAIL_FROM_ADDRESS'),
