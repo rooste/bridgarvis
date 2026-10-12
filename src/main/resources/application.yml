@@ -65,3 +65,7 @@ bridgarvis:
     port: ${BRIDGARVIS_ALEXA_PORT:0}
     # Amazon Polly voice for the skill's speech (e.g. Brian, Matthew); empty = Alexa's own voice
     voice: ${BRIDGARVIS_ALEXA_VOICE:}
+    # How Alexa should say words (respellings), e.g. "Name=Respelling,Other=Respelling"
+    pronunciations: ${BRIDGARVIS_ALEXA_PRONUNCIATIONS:}
+    # Smart home sensors (one per Echo) that let routines play late answers; empty = off
+    sensors-table: ${BRIDGARVIS_ALEXA_SENSORS_TABLE:}

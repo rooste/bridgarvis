@@ -25,7 +25,7 @@ class AlexaSkillTest {
     }
 
     private fun skill(connected: Boolean = true, waitFor: Duration = Duration.ofSeconds(2), voice: String = "") = AlexaSkill(
-        store, replies, progressive, { connected },
+        store, replies, progressive, { connected }, object : AlexaSensorTrigger {},
         progressiveAfter = Duration.ofMillis(100), waitFor = waitFor, retention = Duration.ofDays(1), voice = voice
     )
 
@@ -61,7 +61,7 @@ class AlexaSkillTest {
             while (store.pending().isEmpty()) Thread.sleep(10)
             Thread.sleep(300) // longer than progressiveAfter
             val pending = store.pending().single()
-            assertTrue(replies.complete(pending.id, AlexaReply("You have soccer at five.", endSession = true)))
+            assertEquals(ReplyOutcome.SPOKEN, replies.complete(pending.id, AlexaReply("You have soccer at five.", endSession = true)))
         }
         val response = skill().handle(request("IntentRequest", AlexaSkill.QUERY_INTENT, "what's on today"))
         responder.join()
@@ -94,11 +94,30 @@ class AlexaSkillTest {
     }
 
     @Test
-    fun `a slow answer is promised for later and a late reply is reported undelivered`() {
+    fun `a late answer is kept for the Echo and spoken when the skill opens there`() {
         val response = skill(waitFor = Duration.ofMillis(200)).handle(request("IntentRequest", AlexaSkill.QUERY_INTENT, "plan a trip"))
-        assertEquals("I'm still working on that. I'll send you the answer.", speech(response))
+        assertEquals(AlexaSkill.LATE, speech(response))
         assertTrue(ends(response))
-        assertFalse(replies.complete(store.pending().single().id, AlexaReply("late")))
+        assertEquals(ReplyOutcome.QUEUED, replies.complete(store.pending().single().id, AlexaReply("Lapland in March.")))
+
+        val opened = skill().handle(request("LaunchRequest"))
+        assertEquals("You asked: plan a trip. Lapland in March.", speech(opened))
+        assertTrue(ends(opened))
+        // spoken once: the next launch is the normal greeting
+        assertTrue(speech(skill().handle(request("LaunchRequest"))).startsWith("Hi"))
+        assertEquals(ReplyOutcome.UNKNOWN, replies.complete("no-such-question", AlexaReply("x")))
+    }
+
+    @Test
+    fun `an announcement is spoken when the skill opens on that Echo, joined with one still waiting`() {
+        replies.announce("device-kitchen", "Dinner is ready.")
+        replies.announce("device-kitchen", "Bring the dog in.")
+        replies.announce("device-office", "Not for the kitchen.")
+        assertEquals(
+            "Message from Juujarvis: Dinner is ready. Message from Juujarvis: Bring the dog in.",
+            speech(skill().handle(request("LaunchRequest")))
+        )
+        assertTrue(speech(skill().handle(request("LaunchRequest"))).startsWith("Hi"))
     }
 
     @Test
@@ -140,5 +159,14 @@ class AlexaSkillTest {
     fun `an invalid voice name falls back to plain text`() {
         val response = skill(voice = "Brian\"><audio src=x/>").handle(request("LaunchRequest"))
         assertEquals("PlainText", output(response)["type"])
+    }
+
+    @Test
+    fun `pronunciations change only what Alexa says`() {
+        val skill = AlexaSkill(store, replies, progressive, { true }, object : AlexaSensorTrigger {}, Duration.ofMillis(100), Duration.ofSeconds(2),
+            Duration.ofDays(1), pronunciations = "Alex=Alecks, Kaisa = Kaisah ,bad=<x>,=nothing")
+        assertEquals("Alecks and Kaisah: Alecks's book, Alecks. Alexander and Alexa stay.",
+            skill.respell("Alex and Kaisa: Alex's book, ALEX. Alexander and Alexa stay."))
+        assertEquals(2, AlexaSkill.parsePronunciations("Alex=Alecks, Kaisa = Kaisah ,bad=<x>,=nothing").size)
     }
 }

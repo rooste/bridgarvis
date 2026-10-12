@@ -4,6 +4,8 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -21,6 +23,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   siteHost: string;
   /** Name Alexa calls (nginx forwards only POST /alexa to the gateway). */
   alexaHost?: string;
+  /** Smart home skill ("Juujarvis Sensors") allowed to invoke the sensor Lambda. */
+  alexaSmartHomeSkillId?: string;
   /** More names serving the same website (e.g. the bare domain and www). */
   siteAliases?: string[];
   /** Subdomain whose mail is received through SES while the main domain's MX still points elsewhere. */
@@ -306,6 +310,49 @@ export class BridgarvisStack extends cdk.Stack {
       ],
       conditions: { StringEquals: { 'ses:FromAddress': props.mailFromAddress } },
     }));
+
+    // ---------------------------------------------------------------- Alexa sensors (smart home skill)
+
+    // One virtual contact sensor per Echo; Bridgarvis opens it when a late answer waits for that Echo,
+    // and a household routine then opens the Juujarvis skill there. Items: sensor#<endpointId>, token.
+    const alexaSensors = new dynamodb.TableV2(this, 'AlexaSensors', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      billing: dynamodb.Billing.onDemand(),
+    });
+    const smartHomeParams = '/bridgarvis/alexa-smarthome';
+    const smartHomeParamArn = `arn:aws:ssm:${this.region}:${this.account}:parameter${smartHomeParams}/*`;
+    const smartHome = new nodejs.NodejsFunction(this, 'AlexaSmartHome', {
+      entry: path.join(import.meta.dirname, '..', 'lambda', 'alexa-smarthome', 'index.ts'),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 256,
+      timeout: cdk.Duration.seconds(6),
+      environment: { SENSORS_TABLE: alexaSensors.tableName, PARAM_PREFIX: smartHomeParams },
+      bundling: { externalModules: ['@aws-sdk/*'], minify: true },
+      logGroup: new logs.LogGroup(this, 'AlexaSmartHomeLogs', {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+    });
+    alexaSensors.grantReadWriteData(smartHome);
+    smartHome.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameters', 'ssm:GetParameter'],
+      resources: [smartHomeParamArn],
+    }));
+    if (props.alexaSmartHomeSkillId) {
+      smartHome.addPermission('AlexaSmartHomeSkill', {
+        principal: new iam.ServicePrincipal('alexa-connectedhome.amazon.com'),
+        eventSourceToken: props.alexaSmartHomeSkillId,
+      });
+    }
+    // The host flips sensors and refreshes the event-gateway token
+    alexaSensors.grantReadWriteData(role);
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameters', 'ssm:GetParameter'],
+      resources: [smartHomeParamArn],
+    }));
+    new cdk.CfnOutput(this, 'AlexaSensorsTable', { value: alexaSensors.tableName });
+    new cdk.CfnOutput(this, 'AlexaSmartHomeFunctionArn', { value: smartHome.functionArn });
 
     new cdk.CfnOutput(this, 'MessagesTable', { value: messages.tableName });
     new cdk.CfnOutput(this, 'MailBucketName', { value: mailBucket.bucketName });

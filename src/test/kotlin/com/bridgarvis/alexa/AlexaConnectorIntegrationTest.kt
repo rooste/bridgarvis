@@ -57,6 +57,7 @@ class AlexaConnectorIntegrationTest {
         assertEquals(404, alexa("GET", "/api/messages"))
         assertEquals(404, alexa("POST", "/api/alexa/x/reply", """{"speech":"hi"}"""))
         assertEquals(404, alexa("POST", "/api/email/send", "{}"))
+        assertEquals(404, alexa("POST", "/api/alexa/announce", """{"deviceId":"d","text":"hi"}"""))
         assertEquals(404, alexa("GET", "/ui"))
         assertEquals(404, alexa("GET", "/alexa"))
         assertEquals(404, alexa("GET", "/ws"))
@@ -76,8 +77,15 @@ class AlexaConnectorIntegrationTest {
         assertEquals(403, post("/alexa", "{}").statusCode())
         val reply = post("/api/alexa/unknown/reply", """{"speech":"hello"}""")
         assertEquals(200, reply.statusCode())
-        assertEquals("""{"delivered":false}""", reply.body())
+        assertEquals("""{"delivered":false,"queued":false,"announced":false}""", reply.body())
         assertEquals(400, post("/api/alexa/unknown/reply", """{"speech":" "}""").statusCode())
+
+        // without the sensors table (tests) an announcement waits for the skill to be opened
+        val announce = post("/api/alexa/announce", """{"deviceId":"device-1","text":"Dinner is ready."}""")
+        assertEquals(200, announce.statusCode())
+        assertEquals("""{"queued":true,"announced":false}""", announce.body())
+        assertEquals(400, post("/api/alexa/announce", """{"deviceId":"device-1","text":""}""").statusCode())
+        assertEquals(400, post("/api/alexa/announce", """{"text":"hi"}""").statusCode())
     }
 
     companion object {

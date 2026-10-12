@@ -28,23 +28,39 @@ class AlexaSkill(
     private val replies: AlexaReplies,
     private val progressive: ProgressiveResponder,
     private val presence: ClientPresence,
+    private val sensors: AlexaSensorTrigger,
     @Value("\${bridgarvis.alexa.progressive-after:1200ms}") private val progressiveAfter: Duration,
     @Value("\${bridgarvis.alexa.wait-for:6500ms}") private val waitFor: Duration,
     @Value("\${bridgarvis.alexa.retention:1d}") private val retention: Duration,
     /** Amazon Polly voice for everything the skill says (e.g. "Brian"); empty = Alexa's own voice. */
-    @Value("\${bridgarvis.alexa.voice:}") voice: String = ""
+    @Value("\${bridgarvis.alexa.voice:}") voice: String = "",
+    /** How Alexa should say words, e.g. "Name=Respelling,Other=Respelling" (whole words, any case). */
+    @Value("\${bridgarvis.alexa.pronunciations:}") pronunciations: String = ""
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val voice = voice.trim().takeIf { it.matches(Regex("[A-Za-z]{2,20}")) }
+    private val respellings: List<Pair<Regex, String>> = parsePronunciations(pronunciations)
 
     fun handle(request: JsonNode): Map<String, Any> {
         val type = request.path("request").path("type").asText()
         return when (type) {
-            "LaunchRequest" -> speak(GREETING, reprompt = REPROMPT)
+            "LaunchRequest" -> launch(request)
             "IntentRequest" -> intent(request)
             "SessionEndedRequest" -> empty()
             else -> empty()
         }
+    }
+
+    /**
+     * Opening the skill speaks a late answer waiting for this Echo, if there is one (the user opened it to
+     * hear it, or a routine did); otherwise the greeting.
+     */
+    private fun launch(request: JsonNode): Map<String, Any> {
+        val deviceId = request.path("context").path("System").path("device").path("deviceId").textOrNull()
+        val waiting = replies.takeAnnouncement(deviceId) ?: return speak(GREETING, reprompt = REPROMPT)
+        log.info("Speaking a waiting answer on launch")
+        val intro = if (waiting.question.isNotBlank()) "You asked: ${waiting.question}. " else ""
+        return speak(intro + waiting.speech, end = true)
     }
 
     private fun intent(request: JsonNode): Map<String, Any> {
@@ -97,7 +113,7 @@ class AlexaSkill(
             expiresAt = now.plus(retention)
         )
 
-        val reply = replies.register(id)
+        val reply = replies.register(id, message.context["deviceId"], message.text)
         store.save(message)
         log.info("Alexa question {} handed to Juujarvis", id)
         CompletableFuture.delayedExecutor(progressiveAfter.toMillis(), TimeUnit.MILLISECONDS).execute {
@@ -114,7 +130,7 @@ class AlexaSkill(
         } catch (e: TimeoutException) {
             replies.forget(id)
             log.info("Alexa question {} not answered in time", id)
-            speak("I'm still working on that. I'll send you the answer.", end = true)
+            speak(if (runCatching { sensors.canAnnounce(message.context["deviceId"]) }.getOrDefault(false)) LATE_ANNOUNCED else LATE, end = true)
         }
     }
 
@@ -127,8 +143,14 @@ class AlexaSkill(
         return mapOf("version" to "1.0", "response" to response)
     }
 
-    private fun plain(text: String): Map<String, String> =
-        ssml(text)?.let { mapOf("type" to "SSML", "ssml" to it) } ?: mapOf("type" to "PlainText", "text" to text.take(MAX_SPEECH))
+    private fun plain(text: String): Map<String, String> {
+        val spoken = respell(text)
+        return ssml(spoken)?.let { mapOf("type" to "SSML", "ssml" to it) }
+            ?: mapOf("type" to "PlainText", "text" to spoken.take(MAX_SPEECH))
+    }
+
+    /** Applies the pronunciation list: only what Alexa says changes, never what is stored or sent on. */
+    fun respell(text: String): String = respellings.fold(text) { acc, (word, spoken) -> word.replace(acc, spoken) }
 
     /**
      * The text in the configured voice, or null without one. The text is XML-escaped, so nothing in an
@@ -146,11 +168,22 @@ class AlexaSkill(
     private fun JsonNode.textOrNull(): String? = if (isTextual && asText().isNotBlank()) asText() else null
 
     companion object {
+        /** "Word=Spoken,Other=Spoken": letters, apostrophes and hyphens only; anything else is ignored. */
+        fun parsePronunciations(config: String): List<Pair<Regex, String>> = config.split(',')
+            .mapNotNull { entry ->
+                val (word, spoken) = entry.split('=', limit = 2).map { it.trim() }.takeIf { it.size == 2 } ?: return@mapNotNull null
+                val allowed = Regex("[\\p{L}][\\p{L}' -]{0,40}")
+                if (!word.matches(allowed) || !spoken.matches(allowed)) return@mapNotNull null
+                Regex("(?<![\\p{L}])${Regex.escape(word)}(?![\\p{L}])", RegexOption.IGNORE_CASE) to spoken
+            }
+
         const val CHANNEL = "alexa"
         const val QUERY_INTENT = "QueryIntent"
         const val QUERY_SLOT = "query"
         private const val GREETING = "Hi, it's Juujarvis. What can I do for you?"
         private const val REPROMPT = "What can I do for you?"
+        const val LATE = "That's taking a little longer. Open you jarvis again in a moment to hear the answer."
+        const val LATE_ANNOUNCED = "That's taking a little longer. I'll tell you here when I have it."
         private const val MAX_QUERY = 2000
         private const val MAX_SPEECH = 6000
     }

@@ -15,6 +15,7 @@ new BridgarvisStack(app, 'BridgarvisStack', {
   hostName: required('BRIDGARVIS_HOST'),
   siteHost: required('BRIDGARVIS_SITE_HOST'),
   alexaHost: process.env.BRIDGARVIS_ALEXA_HOST || undefined,
+  alexaSmartHomeSkillId: process.env.BRIDGARVIS_ALEXA_SMARTHOME_SKILL_ID || undefined,
   siteAliases: (process.env.BRIDGARVIS_SITE_ALIASES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   mailTestDomain: required('BRIDGARVIS_MAIL_TEST_DOMAIN'),
   mailUiHost: required('BRIDGARVIS_MAIL_UI_HOST'),
