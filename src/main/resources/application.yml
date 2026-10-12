@@ -58,3 +58,10 @@ bridgarvis:
     from-address: ${BRIDGARVIS_MAIL_FROM_ADDRESS:assistant@example.com}
     configuration-set: ${BRIDGARVIS_MAIL_CONFIGURATION_SET:}
     events-queue-url: ${BRIDGARVIS_MAIL_EVENTS_QUEUE_URL:}
+  alexa:
+    # Alexa custom skill: only its requests are accepted. Empty = every /alexa request is rejected.
+    skill-id: ${BRIDGARVIS_ALEXA_SKILL_ID:}
+    # Localhost plain-HTTP connector that nginx forwards /alexa to (0 = off)
+    port: ${BRIDGARVIS_ALEXA_PORT:0}
+    # Amazon Polly voice for the skill's speech (e.g. Brian, Matthew); empty = Alexa's own voice
+    voice: ${BRIDGARVIS_ALEXA_VOICE:}

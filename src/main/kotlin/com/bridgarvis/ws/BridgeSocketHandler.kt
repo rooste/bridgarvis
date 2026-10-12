@@ -17,21 +17,28 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Notification-only WebSocket. The server sends one frame type:
  *
- *   {"type":"message.available","id":"<message id>","channel":"sms|email"}
+ *   {"type":"message.available","id":"<message id>","channel":"sms|email|alexa"}
  *
  * It carries no message content. The client fetches the message with
  * GET /api/messages/{id} and acks it over REST once it has been processed.
  * On connect, every pending (unacked) message is announced again, so nothing
  * is lost while the client is offline. Frames sent by the client are ignored.
  */
+/** Whether Juujarvis currently holds a notification connection. */
+fun interface ClientPresence {
+    fun connected(): Boolean
+}
+
 @Component
 class BridgeSocketHandler(
     private val store: MessageStore,
     private val mapper: ObjectMapper
-) : TextWebSocketHandler() {
+) : TextWebSocketHandler(), ClientPresence {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val sessions = ConcurrentHashMap<String, WebSocketSession>()
+
+    override fun connected() = sessions.isNotEmpty()
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val safe = ConcurrentWebSocketSessionDecorator(session, 10_000, 64 * 1024)

@@ -51,6 +51,8 @@ data class Message(
     val inReplyTo: String? = null,
     val references: String? = null,
     val purpose: String? = null,
+    /** Channel-specific details, e.g. for Alexa: deviceId, personId, locale, sessionId. */
+    val context: Map<String, String> = emptyMap(),
     /** Outbound mail: last delivery event detail (bounce reason, delay type, ...). */
     val deliveryDetail: String? = null,
     @get:JsonIgnore val pendingFor: String? = null,

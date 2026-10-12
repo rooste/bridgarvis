@@ -19,6 +19,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   hostName: string;
   /** Public website (program info, privacy policy, terms) served by nginx on this host. */
   siteHost: string;
+  /** Name Alexa calls (nginx forwards only POST /alexa to the gateway). */
+  alexaHost?: string;
   /** More names serving the same website (e.g. the bare domain and www). */
   siteAliases?: string[];
   /** Subdomain whose mail is received through SES while the main domain's MX still points elsewhere. */
@@ -133,6 +135,14 @@ export class BridgarvisStack extends cdk.Stack {
       target: route53.RecordTarget.fromIpAddresses(eip.ref),
       ttl: cdk.Duration.minutes(5),
     });
+    if (props.alexaHost) {
+      new route53.ARecord(this, 'AlexaRecord', {
+        zone,
+        recordName: props.alexaHost,
+        target: route53.RecordTarget.fromIpAddresses(eip.ref),
+        ttl: cdk.Duration.minutes(5),
+      });
+    }
     (props.siteAliases ?? []).forEach((name, i) => {
       new route53.ARecord(this, `SiteAlias${i}`, {
         zone,

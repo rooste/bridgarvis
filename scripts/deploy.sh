@@ -9,6 +9,8 @@
 #
 # local.env needs: BRIDGARVIS_HOST, BRIDGARVIS_JUUJARVIS_ADDRESS. Trusted client certificates come from
 # certs/juujarvis.pem and certs/browser-*.pem. AWS resource names come from the stack outputs.
+# Optional BRIDGARVIS_ALEXA_HOST + BRIDGARVIS_ALEXA_SKILL_ID: nginx serves that name with its own
+# certificate and forwards only POST /alexa to the gateway's localhost Alexa connector.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,6 +18,8 @@ set -a; source "$ROOT/infra/local.env"; set +a
 : "${BRIDGARVIS_HOST:?}" "${BRIDGARVIS_JUUJARVIS_ADDRESS:?}"
 MAIL_UI_HOST="${BRIDGARVIS_MAIL_UI_HOST:-}"
 NOTIFY_ADDRESSES="${BRIDGARVIS_NOTIFY_ADDRESSES:-}"
+ALEXA_HOST="${BRIDGARVIS_ALEXA_HOST:-}"
+ALEXA_PORT=0; [ -n "$ALEXA_HOST" ] && ALEXA_PORT=8445
 [ -f "$ROOT/certs/juujarvis.pem" ] || { echo "Missing certs/juujarvis.pem (scripts/gen-certs.sh)" >&2; exit 1; }
 # Trusted clients: Juujarvis plus every browser certificate (scripts/gen-client-cert.sh)
 CLIENTS="$(mktemp)"
@@ -92,12 +96,44 @@ BRIDGARVIS_SCHOOL_SENDER_DOMAINS=${BRIDGARVIS_SCHOOL_SENDER_DOMAINS:-}
 BRIDGARVIS_MAIL_FROM_ADDRESS=$BRIDGARVIS_MAIL_FROM_ADDRESS
 BRIDGARVIS_MAIL_CONFIGURATION_SET=$CONFIG_SET
 BRIDGARVIS_MAIL_EVENTS_QUEUE_URL=$EVENTS_QUEUE
+BRIDGARVIS_ALEXA_SKILL_ID=${BRIDGARVIS_ALEXA_SKILL_ID:-}
+BRIDGARVIS_ALEXA_PORT=$ALEXA_PORT
+BRIDGARVIS_ALEXA_VOICE=${BRIDGARVIS_ALEXA_VOICE:-}
 ENV
 chown root:bridgarvis /etc/bridgarvis/aws.env
 chmod 640 /etc/bridgarvis/aws.env
 install -d /etc/systemd/system/bridgarvis.service.d
 printf '[Service]\nEnvironmentFile=/etc/bridgarvis/aws.env\n' > /etc/systemd/system/bridgarvis.service.d/aws.conf
 systemctl daemon-reload
+
+# Alexa: nginx terminates TLS for the Alexa name (SNI default route → 8444) and forwards only POST /alexa
+ALEXA_HOST='$ALEXA_HOST'
+if [ -n "\$ALEXA_HOST" ]; then
+  certbot certonly --dns-route53 --non-interactive --agree-tos --register-unsafely-without-email \
+    --cert-name "\$ALEXA_HOST" --keep-until-expiring -d "\$ALEXA_HOST" 2>&1 | tail -1
+  cat > /etc/nginx/conf.d/alexa.conf <<NGINX
+server {
+    listen 127.0.0.1:8444 ssl;
+    http2 on;
+    server_name \$ALEXA_HOST;
+    server_tokens off;
+    ssl_certificate     /etc/letsencrypt/live/\$ALEXA_HOST/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/\$ALEXA_HOST/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 128k;
+    location = /alexa {
+        limit_except POST { deny all; }
+        proxy_pass http://127.0.0.1:$ALEXA_PORT;
+        proxy_read_timeout 15s;
+    }
+    location / { return 404; }
+}
+NGINX
+else
+  rm -f /etc/nginx/conf.d/alexa.conf
+fi
+nginx -t 2>&1 | tail -1
+systemctl reload nginx
 
 # Install the release
 install -d -o bridgarvis -g bridgarvis "/opt/bridgarvis/releases/\$REL"

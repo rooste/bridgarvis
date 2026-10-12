@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
 import org.springframework.stereotype.Component
@@ -16,14 +17,21 @@ import javax.naming.ldap.LdapName
  * ones; this decides what each may use, by its CN:
  *   juujarvis   → /api/..., /ws   (the assistant)
  *   browser-...  → /ui/...        (people reading mail in a browser)
- * Requests without a client certificate only exist on the plain-HTTP localhost management port.
+ * The Alexa connector (localhost, behind nginx, no client certificate) serves only POST /alexa, which
+ * verifies Amazon's signature itself. Other requests without a client certificate only exist on the
+ * plain-HTTP localhost management port.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-class ClientRoleFilter : OncePerRequestFilter() {
+class ClientRoleFilter(@Value("\${bridgarvis.alexa.port:0}") private val alexaPort: Int) : OncePerRequestFilter() {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
+        if (alexaPort > 0 && request.localPort == alexaPort) {
+            if (request.method == "POST" && request.requestURI == "/alexa") return chain.doFilter(request, response)
+            log.warn("Denied {} {} on the Alexa connector", request.method, request.requestURI)
+            return response.sendError(HttpServletResponse.SC_NOT_FOUND)
+        }
         if (!request.isSecure) return chain.doFilter(request, response)
 
         @Suppress("UNCHECKED_CAST")

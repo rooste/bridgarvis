@@ -1,0 +1,42 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "you jarvis",
+      "intents": [
+        {
+          "name": "QueryIntent",
+          "slots": [
+            { "name": "query", "type": "CatchAll" }
+          ],
+          "samples": [
+            "{query}"
+          ]
+        },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] }
+      ],
+      "types": [
+        {
+          "name": "CatchAll",
+          "values": [
+            { "name": { "value": "what is on the calendar tomorrow" } },
+            { "name": { "value": "remind alex to finish the science project on thursday" } },
+            { "name": { "value": "add milk and eggs to the shopping list" } },
+            { "name": { "value": "when is the next soccer practice" } },
+            { "name": { "value": "send a message to mom that i am running late" } },
+            { "name": { "value": "what is the weather like this weekend" } },
+            { "name": { "value": "do we have anything planned for saturday evening" } },
+            { "name": { "value": "how many days until christmas" } },
+            { "name": { "value": "tell the kids dinner is ready" } },
+            { "name": { "value": "did the school send anything important this week" } },
+            { "name": { "value": "what tasks are still open" } },
+            { "name": { "value": "who is picking up the kids today" } }
+          ]
+        }
+      ]
+    }
+  }
+}

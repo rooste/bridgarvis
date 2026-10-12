@@ -169,6 +169,7 @@ class DynamoMessageStore(
         m.providerId?.let { put("providerId", s(it)) }
         m.expiresAt?.let { put("expiresAt", AttributeValue.fromN(it.epochSecond.toString())) }
         if (m.auth.isNotEmpty()) put("auth", AttributeValue.fromM(m.auth.mapValues { s(it.value) }))
+        if (m.context.isNotEmpty()) put("context", AttributeValue.fromM(m.context.mapValues { s(it.value) }))
         if (m.attachments.isNotEmpty()) put("attachments", AttributeValue.fromL(m.attachments.map { a ->
             AttributeValue.fromM(buildMap {
                 put("index", AttributeValue.fromN(a.index.toString()))
@@ -198,6 +199,7 @@ class DynamoMessageStore(
             AttachmentInfo(a.num("index").toInt(), a.str("name").orEmpty(), a.str("contentType").orEmpty(), a.num("size"), a.str("key"))
         },
         auth = i["auth"]?.m().orEmpty().mapValues { it.value.s() },
+        context = i["context"]?.m().orEmpty().mapValues { it.value.s() },
         messageId = i.str("messageId"),
         inReplyTo = i.str("inReplyTo"),
         references = i.str("references"),
