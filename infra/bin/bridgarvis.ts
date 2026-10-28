@@ -20,5 +20,6 @@ new BridgarvisStack(app, 'BridgarvisStack', {
   mailTestDomain: required('BRIDGARVIS_MAIL_TEST_DOMAIN'),
   mailUiHost: required('BRIDGARVIS_MAIL_UI_HOST'),
   mailFromAddress: required('BRIDGARVIS_MAIL_FROM_ADDRESS'),
+  responderAddresses: (process.env.BRIDGARVIS_RESPONDER_ADDRESSES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 });
 cdk.Tags.of(app).add('Project', 'bridgarvis');

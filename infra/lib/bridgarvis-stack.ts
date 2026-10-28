@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as smsvoice from 'aws-cdk-lib/aws-smsvoice';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -33,6 +34,8 @@ export interface BridgarvisStackProps extends cdk.StackProps {
   mailUiHost: string;
   /** The only address the gateway may send email from (e.g. the assistant's address). */
   mailFromAddress: string;
+  /** Test mailboxes the auto-responder answers from (may send as these too); "prefix*@domain" allowed. */
+  responderAddresses?: string[];
 }
 
 /**
@@ -166,14 +169,20 @@ export class BridgarvisStack extends cdk.Stack {
       identity: ses.Identity.publicHostedZone(zone),
       mailFromDomain: `bounce.${props.zoneName}`,
     });
-    // Domain policies: only SES may send for the apex; DMARC starts in monitoring mode (p=none) with
-    // aggregate reports delivered to our own mailbox (visible in the mail UI).
+    // Domain policies: only SES may send for the apex. DMARC quarantines unaligned mail (all our mail is
+    // DKIM-signed by SES; aggregate reports, delivered to our own mailbox, showed no failures).
     new route53.TxtRecord(this, 'ApexSpf', {
       zone, values: ['v=spf1 include:amazonses.com ~all'], ttl: cdk.Duration.hours(1),
     });
     new route53.TxtRecord(this, 'Dmarc', {
       zone, recordName: `_dmarc.${props.zoneName}`,
-      values: [`v=DMARC1; p=none; rua=mailto:dmarc-reports@${props.zoneName}; fo=1`],
+      values: [`v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@${props.zoneName}; fo=1`],
+      ttl: cdk.Duration.hours(1),
+    });
+    // BIMI without a certificate (a= empty): the logo shows only where a mark certificate isn't required
+    new route53.TxtRecord(this, 'Bimi', {
+      zone, recordName: `default._bimi.${props.zoneName}`,
+      values: [`v=BIMI1; l=https://${props.siteHost}/bimi.svg; a=;`],
       ttl: cdk.Duration.hours(1),
     });
     const testIdentity = new ses.EmailIdentity(this, 'TestDomainIdentity', {
@@ -292,6 +301,64 @@ export class BridgarvisStack extends cdk.Stack {
       ],
     });
 
+    // ---------------------------------------------------------------- SMS (inbound)
+
+    // The toll-free number's two-way messaging destination is this topic. The number itself (and its
+    // registration) lives outside CDK; point it here once with
+    //   aws pinpoint-sms-voice-v2 update-phone-number --phone-number-id <id> --two-way-enabled \
+    //     --two-way-channel-arn <SmsInboundTopicArn>
+    const smsDlq = new sqs.Queue(this, 'SmsInboundDlq', { retentionPeriod: cdk.Duration.days(14), enforceSSL: true });
+    const smsQueue = new sqs.Queue(this, 'SmsInboundQueue', {
+      retentionPeriod: cdk.Duration.days(14),
+      visibilityTimeout: cdk.Duration.minutes(2),
+      deadLetterQueue: { queue: smsDlq, maxReceiveCount: 5 },
+      enforceSSL: true,
+    });
+    const smsInbound = new sns.Topic(this, 'SmsInbound');
+    smsInbound.addSubscription(new snsSubs.SqsSubscription(smsQueue, { rawMessageDelivery: true }));
+    smsInbound.addToResourcePolicy(new iam.PolicyStatement({
+      principals: [new iam.ServicePrincipal('sms-voice.amazonaws.com')],
+      actions: ['sns:Publish'],
+      resources: [smsInbound.topicArn],
+      conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+    }));
+
+    // ---------------------------------------------------------------- SMS (sending, consent, delivery events)
+
+    // Who opted in (JOIN) or out (STOP / AWS opt-out list); only opted-in numbers are texted.
+    const smsConsent = new dynamodb.TableV2(this, 'SmsConsent', {
+      partitionKey: { name: 'number', type: dynamodb.AttributeType.STRING },
+      billing: dynamodb.Billing.onDemand(),
+      pointInTimeRecovery: true,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+    const smsEventsDlq = new sqs.Queue(this, 'SmsEventsDlq', { retentionPeriod: cdk.Duration.days(14), enforceSSL: true });
+    const smsEventsQueue = new sqs.Queue(this, 'SmsEventsQueue', {
+      retentionPeriod: cdk.Duration.days(14),
+      visibilityTimeout: cdk.Duration.minutes(2),
+      deadLetterQueue: { queue: smsEventsDlq, maxReceiveCount: 5 },
+      enforceSSL: true,
+    });
+    const smsEvents = new sns.Topic(this, 'SmsEvents');
+    smsEvents.addSubscription(new snsSubs.SqsSubscription(smsEventsQueue, { rawMessageDelivery: true }));
+    const smsEventsPolicy = smsEvents.addToResourcePolicy(new iam.PolicyStatement({
+      principals: [new iam.ServicePrincipal('sms-voice.amazonaws.com')],
+      actions: ['sns:Publish'],
+      resources: [smsEvents.topicArn],
+      conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+    }));
+    const smsConfig = new smsvoice.CfnConfigurationSet(this, 'SmsConfig', {
+      configurationSetName: 'bridgarvis-sms',
+      eventDestinations: [{
+        eventDestinationName: 'to-sns',
+        enabled: true,
+        matchingEventTypes: ['TEXT_ALL'],
+        snsDestination: { topicArn: smsEvents.topicArn },
+      }],
+    });
+    // The topic policy must exist before AWS validates the destination
+    if (smsEventsPolicy.policyDependable) smsConfig.node.addDependency(smsEventsPolicy.policyDependable);
+
     // Gateway access
     messages.grantReadWriteData(role);
     mailBucket.grantRead(role, 'inbound/*');
@@ -299,7 +366,23 @@ export class BridgarvisStack extends cdk.Stack {
     mailBucket.grantReadWrite(role, 'parsed/*');
     parseQueue.grantConsumeMessages(role);
     sendEventsQueue.grantConsumeMessages(role);
-    // Send only from the one address, only with our configuration set (so every send produces events).
+    smsQueue.grantConsumeMessages(role);
+    smsEventsQueue.grantConsumeMessages(role);
+    smsConsent.grantReadWriteData(role);
+    // Send from the account's toll-free number with the configuration set; read the opt-out list
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ['sms-voice:SendTextMessage'],
+      resources: [
+        `arn:aws:sms-voice:${this.region}:${this.account}:phone-number/*`,
+        `arn:aws:sms-voice:${this.region}:${this.account}:configuration-set/${smsConfig.configurationSetName}`,
+        `arn:aws:sms-voice:${this.region}:${this.account}:opt-out-list/*`,
+      ],
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ['sms-voice:DescribeOptedOutNumbers'],
+      resources: [`arn:aws:sms-voice:${this.region}:${this.account}:opt-out-list/*`],
+    }));
+    // Send only from the assistant address (and the auto-responder test mailboxes), only with our configuration set (so every send produces events).
     // identity/* because in the SES sandbox the recipients' verified identities are checked too; the
     // FromAddress condition is what limits the sender.
     role.addToPolicy(new iam.PolicyStatement({
@@ -308,7 +391,8 @@ export class BridgarvisStack extends cdk.Stack {
         `arn:aws:ses:${this.region}:${this.account}:identity/*`,
         `arn:aws:ses:${this.region}:${this.account}:configuration-set/${configurationSet.configurationSetName}`,
       ],
-      conditions: { StringEquals: { 'ses:FromAddress': props.mailFromAddress } },
+      // StringLike: responder mailboxes may be local-part prefixes ("customer*@domain")
+      conditions: { StringLike: { 'ses:FromAddress': [props.mailFromAddress, ...(props.responderAddresses ?? [])] } },
     }));
 
     // ---------------------------------------------------------------- Alexa sensors (smart home skill)
@@ -359,6 +443,11 @@ export class BridgarvisStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'MailParseQueueUrl', { value: parseQueue.queueUrl });
     new cdk.CfnOutput(this, 'MailParseDlqUrl', { value: parseDlq.queueUrl });
     new cdk.CfnOutput(this, 'MailEventsQueueUrl', { value: sendEventsQueue.queueUrl });
+    new cdk.CfnOutput(this, 'SmsInboundTopicArn', { value: smsInbound.topicArn });
+    new cdk.CfnOutput(this, 'SmsInboundQueueUrl', { value: smsQueue.queueUrl });
+    new cdk.CfnOutput(this, 'SmsEventsQueueUrl', { value: smsEventsQueue.queueUrl });
+    new cdk.CfnOutput(this, 'SmsConsentTable', { value: smsConsent.tableName });
+    new cdk.CfnOutput(this, 'SmsConfigurationSet', { value: smsConfig.configurationSetName! });
     new cdk.CfnOutput(this, 'MailConfigurationSet', { value: configurationSet.configurationSetName });
 
     new cdk.CfnOutput(this, 'InstanceId', { value: instance.instanceId });

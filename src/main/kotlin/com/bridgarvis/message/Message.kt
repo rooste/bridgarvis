@@ -15,6 +15,8 @@ object Purpose {
     const val NOTIFY = "notify"
     /** School mail forwarded to the school mailbox from an allowlisted, authenticated school sender. */
     const val SCHOOL = "school"
+    /** SMS keyword (STOP/JOIN/HELP; context "keyword"): already answered by AWS, Juujarvis only records it. */
+    const val KEYWORD = "keyword"
 }
 
 enum class Direction { INBOUND, OUTBOUND }

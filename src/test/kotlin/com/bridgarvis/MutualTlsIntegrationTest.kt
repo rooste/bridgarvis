@@ -81,7 +81,7 @@ class MutualTlsIntegrationTest {
     }
 
     @Test
-    fun `messages can be fetched by id until acked, and send returns a mock result`() {
+    fun `messages can be fetched by id until acked, and send needs an opt-in`() {
         val created = post("/api/mock/inbound", mapOf("from" to "+15551230001", "text" to "hello"))
         assertEquals(201, created.statusCode())
         val id = json(created.body())["id"].asText()
@@ -94,6 +94,13 @@ class MutualTlsIntegrationTest {
         assertEquals(204, post("/api/messages/$id/ack").statusCode())
         assertEquals(404, get("/api/messages/$id").statusCode())
         assertEquals(404, post("/api/messages/$id/ack").statusCode())
+
+        // texts go only to numbers that opted in with JOIN
+        val refused = post("/api/messages/send", mapOf("to" to "+15551230002", "text" to "hi back"))
+        assertEquals(409, refused.statusCode())
+        assertEquals("not_opted_in", json(refused.body())["error"].asText())
+        assertEquals(201, post("/api/mock/inbound", mapOf("from" to "+15551230002", "text" to "JOIN")).statusCode())
+        assertTrue(json(get("/api/sms/consent").body()).any { it["number"].asText() == "+15551230002" && it["consent"].asText() == "OPTED_IN" })
 
         val sent = post("/api/messages/send", mapOf("to" to "+15551230002", "text" to "hi back"))
         assertEquals(200, sent.statusCode())

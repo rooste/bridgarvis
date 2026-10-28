@@ -82,8 +82,11 @@ class MailIngestorTest {
         )
     ))
 
+    private fun responder(store: MessageStore) =
+        AutoResponder(com.bridgarvis.outbound.MockEmailSender(store, "juujarvis@in.example.com", ""), store, "", "", 50)
+
     private fun ingestor(store: MessageStore) =
-        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "juujarvis@in.example.com", "info@in.example.com",
+        MailIngestor(sqs, s3, store, jacksonObjectMapper(), responder(store), "q", "b", "juujarvis@in.example.com", "info@in.example.com",
             "school@in.example.com", "example.com", 365)
 
     @Test
@@ -138,7 +141,7 @@ class MailIngestorTest {
         assertEquals(JUUJARVIS, forged.saved.single().pendingFor)
 
         val store = RecordingStore()
-        MailIngestor(sqs, s3, store, jacksonObjectMapper(), "q", "b", "", "", "school@in.example.com", "district.example.org", 365)
+        MailIngestor(sqs, s3, store, jacksonObjectMapper(), responder(store), "q", "b", "", "", "school@in.example.com", "district.example.org", 365)
             .process(notification("PASS", listOf("school@in.example.com")))
         assertEquals("notify", store.saved.single().purpose)               // authenticated but not a school domain
     }

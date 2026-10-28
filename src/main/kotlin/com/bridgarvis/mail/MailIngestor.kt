@@ -35,6 +35,7 @@ class MailIngestor(
     private val s3: S3Client,
     private val store: MessageStore,
     private val mapper: ObjectMapper,
+    private val responder: AutoResponder,
     @Value("\${bridgarvis.mail.queue-url}") private val queueUrl: String,
     @Value("\${bridgarvis.mail.bucket}") private val bucket: String,
     @Value("\${bridgarvis.mail.juujarvis-address}") juujarvisAddresses: String,
@@ -153,7 +154,7 @@ class MailIngestor(
                 purpose != null && !accepted -> "QUARANTINED"
                 else -> "RECEIVED"
             }
-            store.save(Message(
+            val stored = Message(
                 id = id,
                 channel = "email",
                 direction = Direction.INBOUND,
@@ -178,7 +179,10 @@ class MailIngestor(
                 rawKey = objectKey,
                 providerId = sesId,
                 expiresAt = receivedAt.plus(Duration.ofDays(retentionDays))
-            ))
+            )
+            store.save(stored)
+            // Test mailboxes (auto-responder): handled after storing, on their own thread
+            if (parsed != null && status == "RECEIVED") responder.submit(stored, parsed, trusted)
         }
         log.info("Mail {} stored for {} mailbox(es); trusted={}, verdicts={}", id, recipients.size, trusted, verdicts)
     }

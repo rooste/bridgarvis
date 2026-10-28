@@ -34,4 +34,16 @@ class MailPolicyTest {
         assertTrue(MailPolicy.isAllowedSender("Parent@Mail.Example", withAddress))     // exact address, any case
         assertFalse(MailPolicy.isAllowedSender("other@mail.example", withAddress))     // not the whole domain
     }
+
+    @Test
+    fun `mailbox patterns match exact addresses or a local-part prefix in one domain`() {
+        kotlin.test.assertTrue(MailPolicy.matchesMailbox("Customer@Example.com", "customer@example.com"))
+        listOf("customer@example.com", "customer1@example.com", "Customer-QA@example.com")
+            .forEach { kotlin.test.assertTrue(MailPolicy.matchesMailbox(it, "customer*@example.com"), it) }
+        listOf("customer1@other.com", "customer1@sub.example.com", "xcustomer@example.com", "info@example.com",
+            "customer@example.com@evil.com")
+            .forEach { kotlin.test.assertFalse(MailPolicy.matchesMailbox(it, "customer*@example.com"), it) }
+        kotlin.test.assertFalse(MailPolicy.matchesMailbox("a@example.com", "*@example.com".replace("*", "*x*")))
+        kotlin.test.assertFalse(MailPolicy.matchesMailbox("customer@example.com", "customer@*.com"))
+    }
 }

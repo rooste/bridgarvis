@@ -30,6 +30,21 @@ object MailPolicy {
         }
     }
 
+    /**
+     * Address matches a mailbox pattern: an exact address, or a local-part prefix ending in "*"
+     * ("customer*@example.com" matches customer@, customer1@, customer-qa@ of that domain only).
+     * Case-insensitive.
+     */
+    fun matchesMailbox(address: String, pattern: String): Boolean {
+        val a = address.trim().lowercase()
+        val p = pattern.trim().lowercase()
+        if (!p.contains('*')) return a == p
+        val local = p.substringBefore('@')
+        if (!local.endsWith('*') || local.dropLast(1).contains('*') || p.substringAfter('@').contains('*')) return false
+        return a.substringAfterLast('@') == p.substringAfter('@') &&
+            a.substringBeforeLast('@').startsWith(local.dropLast(1)) && a.count { it == '@' } == 1
+    }
+
     /** Not flagged as spam or virus. Enough for notify-only mailboxes, where strangers write legitimately. */
     fun isClean(verdicts: Map<String, String>): Boolean =
         verdicts["spam"] != "FAIL" && verdicts["virus"] != "FAIL"

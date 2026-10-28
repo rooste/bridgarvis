@@ -16,10 +16,14 @@ import java.time.Instant
 
 data class MailAddress(val address: String, val name: String?)
 
+/** A link a reader can see in the HTML part: its visible text and target. */
+data class MailLink(val text: String, val href: String)
+
 data class ParsedAttachment(val index: Int, val name: String, val contentType: String, val bytes: ByteArray)
 
 data class ParsedMail(
     val from: MailAddress?,
+    val replyTo: MailAddress? = null,
     val to: List<MailAddress>,
     val cc: List<MailAddress>,
     val subject: String?,
@@ -33,7 +37,9 @@ data class ParsedMail(
     val latest: String,
     val attachments: List<ParsedAttachment>,
     /** Parts that were skipped because a limit was reached. */
-    val truncated: Boolean
+    val truncated: Boolean,
+    /** Visible links in the HTML part (empty for plain-text mail). */
+    val links: List<MailLink> = emptyList()
 )
 
 class MailTooLargeException(message: String) : RuntimeException(message)
@@ -73,6 +79,7 @@ class MailParser(
         )
         return ParsedMail(
             from = message.from?.firstOrNull()?.let { it.toAddress() },
+            replyTo = message.replyTo?.flatten()?.firstOrNull()?.toAddress(),
             to = message.to?.flatten()?.map { it.toAddress() }.orEmpty(),
             cc = message.cc?.flatten()?.map { it.toAddress() }.orEmpty(),
             subject = message.subject?.let { TextCleaner.normalize(it).take(500) },
@@ -83,7 +90,8 @@ class MailParser(
             text = text,
             latest = TextCleaner.stripQuoted(text),
             attachments = walk.attachments,
-            truncated = walk.truncated
+            truncated = walk.truncated,
+            links = walk.html?.let { TextCleaner.visibleLinks(it) }.orEmpty()
         )
     }
 

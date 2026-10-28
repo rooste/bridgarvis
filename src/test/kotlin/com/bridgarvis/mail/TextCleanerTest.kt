@@ -28,6 +28,22 @@ class TextCleanerTest {
     }
 
     @Test
+    fun `email layouts with font-size 0 containers keep their sized content`() {
+        val html = """
+            <div style="display:none;max-height:0px;font-size:0px">preheader filler</div>
+            <table><tr><td style="font-size:0px;padding:24px">gap text
+              <div style="font-size:0px;display:inline-block">
+                <div style="font-size:16px;line-height:24px">test message 10-16</div>
+                <a href="https://go.example.com/f/a/abc" style="font-size:12px">unsubscribe</a>
+              </div>
+            </td></tr></table>
+            <table><tr><td style="font-size:0px;line-height:0px">spacer</td></tr></table>
+        """.trimIndent()
+        assertEquals("test message 10-16\nunsubscribe", TextCleaner.normalize(TextCleaner.htmlToText(html)))
+        assertEquals(listOf(MailLink("unsubscribe", "https://go.example.com/f/a/abc")), TextCleaner.visibleLinks(html))
+    }
+
+    @Test
     fun `invisible and tag characters are removed`() {
         val tagged = "Pay" + String(Character.toChars(0xE0041)) + String(Character.toChars(0xE0042)) + " now"
         val raw = "a​b‍c⁦d‮e﻿f­g $tagged ͏"

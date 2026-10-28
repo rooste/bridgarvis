@@ -40,7 +40,14 @@ bridgarvis:
   store: ${BRIDGARVIS_STORE:memory}
   messages-table: ${BRIDGARVIS_MESSAGES_TABLE:}
   sms:
+    # The toll-free number; texts go out only when the origination identity (its phone number id) is set
     number: ${BRIDGARVIS_SMS_NUMBER:+15550000000}
+    origination-identity: ${BRIDGARVIS_SMS_ORIGINATION_IDENTITY:}
+    configuration-set: ${BRIDGARVIS_SMS_CONFIGURATION_SET:}
+    consent-table: ${BRIDGARVIS_SMS_CONSENT_TABLE:}
+    inbound-queue-url: ${BRIDGARVIS_SMS_INBOUND_QUEUE_URL:}
+    events-queue-url: ${BRIDGARVIS_SMS_EVENTS_QUEUE_URL:}
+    retention-days: 365
   mail:
     ingest-enabled: ${BRIDGARVIS_MAIL_INGEST:false}
     bucket: ${BRIDGARVIS_MAIL_BUCKET:}
@@ -54,6 +61,12 @@ bridgarvis:
     school-addresses: ${BRIDGARVIS_SCHOOL_ADDRESSES:}
     school-sender-domains: ${BRIDGARVIS_SCHOOL_SENDER_DOMAINS:}
     retention-days: 365
+    # Test mailboxes answered by first-line commands ("test message X", "test unsub X"), for testing a
+    # mail-sending service: only mail from these sender domains (or exact addresses) that passes authentication
+    responder:
+      addresses: ${BRIDGARVIS_RESPONDER_ADDRESSES:}
+      sender-domains: ${BRIDGARVIS_RESPONDER_SENDER_DOMAINS:}
+      max-per-hour: 50
     # Sending (SES): the only From address, the configuration set, and its delivery-events queue
     from-address: ${BRIDGARVIS_MAIL_FROM_ADDRESS:assistant@example.com}
     configuration-set: ${BRIDGARVIS_MAIL_CONFIGURATION_SET:}

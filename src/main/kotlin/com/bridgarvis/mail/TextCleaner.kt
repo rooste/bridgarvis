@@ -23,7 +23,6 @@ object TextCleaner {
         Regex("display\\s*:\\s*none"),
         Regex("visibility\\s*:\\s*hidden"),
         Regex("opacity\\s*:\\s*0(\\.0+)?\\s*(;|$|!)"),
-        Regex("font-size\\s*:\\s*[01](\\.\\d+)?(px|pt|em|rem|%)?\\s*(;|$|!)"),
         Regex("(max-)?height\\s*:\\s*0(px)?\\s*(;|$|!)"),
         Regex("(max-)?width\\s*:\\s*0(px)?\\s*(;|$|!)"),
         Regex("mso-hide\\s*:\\s*all"),
@@ -31,10 +30,7 @@ object TextCleaner {
     )
 
     fun htmlToText(html: String): String {
-        val doc = Jsoup.parse(html)
-        doc.select(removedTags).remove()
-        doc.select("[hidden], [aria-hidden=true]").remove()
-        doc.select("[style]").toList().filter { isHidden(it) }.forEach { it.remove() }
+        val doc = visibleDocument(html)
 
         val out = StringBuilder()
         doc.body().traverse(object : NodeVisitor {
@@ -53,9 +49,41 @@ object TextCleaner {
         return out.toString()
     }
 
+    /** Visible links: text and http(s) target of each <a> that survives the hidden-content removal. */
+    fun visibleLinks(html: String, max: Int = 200): List<MailLink> =
+        visibleDocument(html).select("a[href]").asSequence()
+            .map { MailLink(normalize(it.text()).take(200), it.attr("href").trim()) }
+            .filter { it.href.startsWith("https://", true) || it.href.startsWith("http://", true) }
+            .take(max).toList()
+
+    private fun visibleDocument(html: String): org.jsoup.nodes.Document {
+        val doc = Jsoup.parse(html)
+        doc.select(removedTags).remove()
+        doc.select("[hidden], [aria-hidden=true]").remove()
+        doc.select("[style]").toList().forEach { element ->
+            when {
+                isHidden(element) -> element.remove()
+                // Email layouts (MJML and similar) set font-size:0 on containers to remove inline-block gaps
+                // and give the real content its own font size. Only the container's own text is invisible.
+                isZeroFont(element) -> element.textNodes().filter { !it.isBlank }.forEach { it.remove() }
+            }
+        }
+        return doc
+    }
+
     private fun isHidden(element: Element): Boolean {
         val style = element.attr("style").lowercase()
-        return hiddenStyle.any { it.containsMatchIn(style) }
+        if (hiddenStyle.any { it.containsMatchIn(style) }) return true
+        return isZeroFont(element) && !hasSizedText(element)
+    }
+
+    private val zeroFont = Regex("font-size\\s*:\\s*[01](\\.\\d+)?(px|pt|em|rem|%)?\\s*(;|$|!)")
+
+    private fun isZeroFont(element: Element) = zeroFont.containsMatchIn(element.attr("style").lowercase())
+
+    /** A descendant that sets a readable font size and has text of its own. */
+    private fun hasSizedText(element: Element) = element.select("[style*=font-size]").any { child ->
+        child !== element && !isZeroFont(child) && child.text().isNotBlank()
     }
 
     private fun newline(out: StringBuilder) {

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny-ps" viewBox="0 0 512 512">
+  <title>Juujarvis</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1628"/>
+      <stop offset="40%" stop-color="#1a3a5c"/>
+      <stop offset="70%" stop-color="#2d6a8f"/>
+      <stop offset="100%" stop-color="#4a9ebb"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a8aaa"/>
+      <stop offset="100%" stop-color="#1a4a6c"/>
+    </linearGradient>
+    <linearGradient id="aurora" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22c55e" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#22c55e" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#4ade80" stop-opacity="0.8"/>
+      <stop offset="70%" stop-color="#22c55e" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" fill="url(#sky)"/>
+
+  <path d="M0 120 Q128 80 200 110 Q280 145 340 100 Q400 60 512 90" stroke="url(#aurora)" stroke-width="8" fill="none" stroke-opacity="0.7"/>
+  <path d="M0 140 Q100 170 180 135 Q260 100 350 140 Q420 170 512 130" stroke="url(#aurora)" stroke-width="6" fill="none" stroke-opacity="0.5"/>
+  <path d="M0 95 Q150 60 230 90 Q310 120 400 80 Q450 60 512 75" stroke="url(#aurora)" stroke-width="4" fill="none" stroke-opacity="0.4"/>
+
+  <circle cx="80" cy="70" r="2" fill="#ffffff" fill-opacity="0.8"/>
+  <circle cx="420" cy="55" r="1.5" fill="#ffffff" fill-opacity="0.7"/>
+  <circle cx="350" cy="40" r="2" fill="#ffffff" fill-opacity="0.9"/>
+  <circle cx="150" cy="45" r="1.5" fill="#ffffff" fill-opacity="0.6"/>
+  <circle cx="450" cy="90" r="1" fill="#ffffff" fill-opacity="0.5"/>
+  <circle cx="100" cy="100" r="1" fill="#ffffff" fill-opacity="0.7"/>
+
+  <path d="M0 260 L16 248 L40 240 L50 255 L65 230 L80 255 L95 235 L110 258 L125 225 L140 255 L155 232 L170 258 L185 220 L200 250 L215 228 L230 255 L245 222 L260 252 L275 230 L290 258 L305 225 L320 250 L335 235 L350 258 L365 228 L380 252 L395 232 L410 258 L425 222 L440 248 L455 235 L470 255 L485 240 L496 258 L512 250 L512 290 L0 290 Z" fill="#0d2b1a" fill-opacity="0.9"/>
+  <path d="M0 280 L16 270 L35 260 L45 275 L60 245 L75 270 L85 255 L100 275 L115 240 L130 268 L145 250 L160 278 L175 238 L190 265 L205 248 L220 278 L235 235 L250 270 L265 245 L280 278 L295 240 L310 265 L325 250 L340 278 L355 238 L370 268 L385 250 L400 278 L415 240 L430 265 L445 252 L460 275 L475 255 L490 270 L512 278 L512 300 L0 300 Z" fill="#0a2215" fill-opacity="0.95"/>
+
+  <rect x="0" y="295" width="512" height="217" fill="url(#lake)"/>
+
+  <line x1="80" y1="320" x2="140" y2="320" stroke="#ffffff" stroke-width="1" stroke-opacity="0.15"/>
+  <line x1="200" y1="340" x2="300" y2="340" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.12"/>
+  <line x1="320" y1="360" x2="400" y2="360" stroke="#ffffff" stroke-width="1" stroke-opacity="0.1"/>
+  <line x1="120" y1="380" x2="220" y2="380" stroke="#ffffff" stroke-width="1" stroke-opacity="0.08"/>
+  <line x1="250" y1="400" x2="350" y2="400" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.1"/>
+  <path d="M0 310 Q128 325 200 315 Q280 305 340 320 Q400 330 512 315" stroke="#22c55e" stroke-width="3" fill="none" stroke-opacity="0.15"/>
+
+  <g transform="translate(256, 170)">
+    <circle cx="0" cy="0" r="16" fill="none" stroke="#4ade80" stroke-width="2" stroke-opacity="0.6"/>
+    <circle cx="0" cy="0" r="6" fill="#4ade80" fill-opacity="0.6"/>
+    <line x1="16" y1="0" x2="35" y2="-12" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.6"/>
+    <circle cx="35" cy="-12" r="3" fill="#4ade80" fill-opacity="0.6"/>
+    <line x1="16" y1="0" x2="35" y2="12" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.6"/>
+    <circle cx="35" cy="12" r="3" fill="#4ade80" fill-opacity="0.6"/>
+    <line x1="-16" y1="0" x2="-35" y2="-12" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.6"/>
+    <circle cx="-35" cy="-12" r="3" fill="#4ade80" fill-opacity="0.6"/>
+    <line x1="-16" y1="0" x2="-35" y2="12" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.6"/>
+    <circle cx="-35" cy="12" r="3" fill="#4ade80" fill-opacity="0.6"/>
+    <line x1="0" y1="-16" x2="0" y2="-30" stroke="#4ade80" stroke-width="1.5" stroke-opacity="0.6"/>
+    <circle cx="0" cy="-30" r="3" fill="#4ade80" fill-opacity="0.6"/>
+  </g>
+
+  <path d="M266 428 L266 452 Q266 470 250 470 Q240 470 236 461" stroke="#ffffff" stroke-opacity="0.9" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
